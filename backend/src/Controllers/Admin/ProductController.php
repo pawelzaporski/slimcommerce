@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Controllers\Admin;
 
 use App\Models\Product;
+use App\Models\ProductVariant;
 use OpenApi\Attributes as OA;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -46,6 +47,7 @@ final class ProductController
         $total = Product::query()->count();
 
         $products = Product::query()
+            ->with('categories')
             ->orderBy('id')
             ->forPage($page, $perPage)
             ->get();
@@ -75,7 +77,7 @@ final class ProductController
     )]
     public function show(Request $request, Response $response, array $args): Response
     {
-        $product = Product::query()->find((int) $args['id']);
+        $product = Product::query()->with('categories')->find((int) $args['id']);
 
         if (! $product) {
             return $this->json($response, ['error' => 'Produkt nie istnieje.'], 404);
@@ -87,6 +89,7 @@ final class ProductController
     #[OA\Post(
         path: '/api/admin/products',
         summary: 'Dodanie produktu',
+        description: 'Tworzy produkt wraz z domyślnym wariantem (to samo SKU/cena, EAN z pola `ean`, stan 0) - każdy produkt musi mieć co najmniej jeden wariant, żeby był sprzedawalny.',
         security: [['bearerAuth' => []]],
         tags: ['Admin - Products'],
         requestBody: new OA\RequestBody(
@@ -98,12 +101,14 @@ final class ProductController
                     new OA\Property(property: 'sku', type: 'string', example: 'SKU-002'),
                     new OA\Property(property: 'name', type: 'string', example: 'Kubek ceramiczny'),
                     new OA\Property(property: 'base_price', type: 'number', format: 'float', example: 29.9),
+                    new OA\Property(property: 'ean', type: 'string', nullable: true, description: 'EAN domyślnego wariantu tworzonego razem z produktem'),
                     new OA\Property(property: 'is_active', type: 'boolean', default: true),
+                    new OA\Property(property: 'category_ids', type: 'array', items: new OA\Items(type: 'integer')),
                 ]
             )
         ),
         responses: [
-            new OA\Response(response: 201, description: 'Utworzono produkt', content: new OA\JsonContent(ref: '#/components/schemas/Product')),
+            new OA\Response(response: 201, description: 'Utworzono produkt (wraz z domyślnym wariantem)', content: new OA\JsonContent(ref: '#/components/schemas/Product')),
             new OA\Response(response: 401, description: 'Brak autoryzacji'),
             new OA\Response(response: 422, description: 'Błędy walidacji'),
         ]
@@ -118,19 +123,38 @@ final class ProductController
             $errors['sku'] = 'Produkt z takim SKU już istnieje.';
         }
 
+        if ($errors === [] && ProductVariant::query()->where('sku', $data['sku'])->exists()) {
+            $errors['sku'] = 'Wariant z takim SKU już istnieje.';
+        }
+
         if ($errors !== []) {
             return $this->json($response, ['errors' => $errors], 422);
         }
 
-        $product = Product::query()->create([
-            'external_id' => $data['external_id'] ?? null,
-            'sku' => $data['sku'],
-            'name' => $data['name'],
-            'base_price' => $data['base_price'],
-            'is_active' => $data['is_active'] ?? true,
-        ]);
+        $product = Product::query()->getConnection()->transaction(function () use ($data): Product {
+            $product = Product::query()->create([
+                'external_id' => $data['external_id'] ?? null,
+                'sku' => $data['sku'],
+                'name' => $data['name'],
+                'base_price' => $data['base_price'],
+                'is_active' => $data['is_active'] ?? true,
+            ]);
 
-        return $this->json($response, $product->toArray(), 201);
+            // Domyślny wariant - produkt bez wariantu nie ma gdzie trzymać stanu
+            // magazynowego (storefront/koszyk operują na wariantach).
+            $product->variants()->create([
+                'sku' => $product->sku,
+                'ean' => $data['ean'] ?? null,
+                'price' => $product->base_price,
+                'stock' => 0,
+            ]);
+
+            $product->categories()->sync($this->categoryIds($data));
+
+            return $product;
+        });
+
+        return $this->json($response, $product->load('categories')->toArray(), 201);
     }
 
     #[OA\Put(
@@ -148,6 +172,7 @@ final class ProductController
                     new OA\Property(property: 'name', type: 'string'),
                     new OA\Property(property: 'base_price', type: 'number', format: 'float'),
                     new OA\Property(property: 'is_active', type: 'boolean'),
+                    new OA\Property(property: 'category_ids', type: 'array', items: new OA\Items(type: 'integer')),
                 ]
             )
         ),
@@ -185,7 +210,11 @@ final class ProductController
         $product->fill(array_intersect_key($data, array_flip(self::FILLABLE)));
         $product->save();
 
-        return $this->json($response, $product->toArray());
+        if (array_key_exists('category_ids', $data)) {
+            $product->categories()->sync($this->categoryIds($data));
+        }
+
+        return $this->json($response, $product->load('categories')->toArray());
     }
 
     #[OA\Delete(
@@ -241,6 +270,20 @@ final class ProductController
         }
 
         return $errors;
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     *
+     * @return list<int>
+     */
+    private function categoryIds(array $data): array
+    {
+        if (! isset($data['category_ids']) || ! is_array($data['category_ids'])) {
+            return [];
+        }
+
+        return array_values(array_map('intval', $data['category_ids']));
     }
 
     /**

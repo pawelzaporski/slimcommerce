@@ -1,11 +1,16 @@
 # slimCommerce — backend
 
-Lekkie, headless API e-commerce (PHP 8.5, Slim 4, Eloquent ORM / SQLite).
+Lekkie, headless API e-commerce (PHP 8.4, Slim 4, Eloquent ORM / SQLite).
 
 ## Instalacja
 
 ```bash
 composer install
+
+# macOS / Linux
+cp .env.example .env
+
+# Windows (cmd.exe)
 copy .env.example .env
 ```
 
@@ -104,6 +109,13 @@ API jest podzielone na dwie strefy:
 | PUT    | `/api/admin/variants/{id}` | Edycja wariantu                                          | Bearer JWT |
 | DELETE | `/api/admin/variants/{id}` | Usunięcie wariantu                                       | Bearer JWT |
 | GET    | `/api/storefront/products` | Tylko aktywne produkty                                   | brak |
+| GET    | `/api/storefront/products/{id}` | Szczegóły aktywnego produktu (warianty, kategorie)   | brak |
+| POST   | `/api/storefront/register` | Rejestracja klienta, zwraca token JWT                    | brak |
+| POST   | `/api/storefront/login`  | Logowanie klienta, zwraca token JWT                        | brak |
+| GET    | `/api/storefront/me`     | Profil zalogowanego klienta                                | Bearer JWT (klient) |
+| POST   | `/api/storefront/checkout` | Zamienia koszyk (cart_token) w zamówienie - dla gościa (email/imię/nazwisko w body) lub zalogowanego klienta (Bearer JWT) | opcjonalnie Bearer JWT (klient) |
+| GET    | `/api/storefront/shipping-methods` | Lista metod dostawy do wyboru w checkout                | brak |
+| GET    | `/api/storefront/payment-methods` | Lista metod płatności do wyboru w checkout               | brak |
 
 Przykładowe logowanie:
 

@@ -29,158 +29,896 @@
 </section>
 
 <!-- Ekran główny -->
-<section id="app-view" class="view" hidden>
-    <header class="topbar">
-        <div>
-            <strong>slimCommerce</strong>
-            <span class="muted" id="whoami"></span>
+<section id="app-view" class="view app-shell" hidden>
+    <aside class="sidebar">
+        <div class="sidebar-brand">
+            <span class="sidebar-brand-mark">S</span>
+            <span class="sidebar-brand-name">slimCommerce</span>
         </div>
-        <button id="logout-btn" class="secondary">Wyloguj</button>
-    </header>
 
-    <nav class="tabs">
-        <button type="button" class="tab-btn" data-page="products-page">Produkty</button>
-        <button type="button" class="tab-btn" data-page="attributes-page">Cechy</button>
-    </nav>
-
-    <main class="content">
-        <!-- Strona: Produkty -->
-        <section id="products-page" class="page">
-            <div class="page-toolbar">
-                <button id="add-product-btn">+ Dodaj produkt</button>
+        <nav class="sidebar-nav">
+            <div class="sidebar-nav-group">
+                <p class="sidebar-nav-group-label">Katalog</p>
+                <button type="button" class="sidebar-nav-item" data-page="products-page" data-title="Produkty">
+                    <svg class="nav-icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3 6.5 10 3l7 3.5-7 3.5-7-3.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M3 6.5V14l7 3.5 7-3.5V6.5" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M10 10v7.5" stroke="currentColor" stroke-width="1.5"/></svg>
+                    <span>Produkty</span>
+                </button>
+                <button type="button" class="sidebar-nav-item" data-page="attributes-page" data-title="Cechy">
+                    <svg class="nav-icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M11.3 3.2 3.2 11.3a1 1 0 0 0 0 1.4l4.1 4.1a1 1 0 0 0 1.4 0l8.1-8.1a2 2 0 0 0 .58-1.41V4a1 1 0 0 0-1-1h-3.3a2 2 0 0 0-1.41.58Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><circle cx="13.25" cy="6.75" r="1" fill="currentColor"/></svg>
+                    <span>Cechy</span>
+                </button>
+                <button type="button" class="sidebar-nav-item" data-page="categories-page" data-title="Kategorie">
+                    <svg class="nav-icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3 4.5h6l1.5 2H17v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+                    <span>Kategorie</span>
+                </button>
             </div>
 
-            <p id="list-error" class="error" hidden></p>
-
-            <table class="products-table">
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>External ID</th>
-                        <th>SKU</th>
-                        <th>Nazwa</th>
-                        <th>Cena</th>
-                        <th>Aktywny</th>
-                        <th></th>
-                    </tr>
-                </thead>
-                <tbody id="products-body">
-                    <tr><td colspan="7" class="muted">Ładowanie...</td></tr>
-                </tbody>
-            </table>
-
-            <div class="pagination">
-                <button id="prev-page" class="secondary">&larr; Poprzednia</button>
-                <span id="page-indicator">Strona 1 z 1</span>
-                <button id="next-page" class="secondary">Następna &rarr;</button>
-                <select id="per-page">
-                    <option value="10">10 / stronę</option>
-                    <option value="15" selected>15 / stronę</option>
-                    <option value="25">25 / stronę</option>
-                    <option value="50">50 / stronę</option>
-                </select>
-            </div>
-        </section>
-
-        <!-- Strona: Cechy -->
-        <section id="attributes-page" class="page" hidden>
-            <div class="page-toolbar">
-                <button id="add-attribute-btn">+ Dodaj cechę</button>
+            <div class="sidebar-nav-group">
+                <p class="sidebar-nav-group-label">Sprzedaż</p>
+                <button type="button" class="sidebar-nav-item" data-page="orders-page" data-title="Zamówienia">
+                    <svg class="nav-icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M5 3h10l1 4H4l1-4Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M4 7h12l-1 9.5H5L4 7Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M8 10v3M12 10v3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                    <span>Zamówienia</span>
+                </button>
+                <button type="button" class="sidebar-nav-item" data-page="clients-page" data-title="Klienci">
+                    <svg class="nav-icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="10" cy="6.5" r="3" stroke="currentColor" stroke-width="1.5"/><path d="M3.5 17c0-3.31 2.91-6 6.5-6s6.5 2.69 6.5 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                    <span>Klienci</span>
+                </button>
+                <button type="button" class="sidebar-nav-item" data-page="carts-page" data-title="Koszyki">
+                    <svg class="nav-icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3 3h1.5l1.2 9.6a1.5 1.5 0 0 0 1.49 1.4h6.62a1.5 1.5 0 0 0 1.49-1.28L16.5 6.5H5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="7.5" cy="17" r="1.1" stroke="currentColor" stroke-width="1.5"/><circle cx="13.5" cy="17" r="1.1" stroke="currentColor" stroke-width="1.5"/></svg>
+                    <span>Koszyki</span>
+                </button>
             </div>
 
-            <p id="attributes-error" class="error" hidden></p>
+            <div class="sidebar-nav-group">
+                <p class="sidebar-nav-group-label">Ustawienia</p>
+                <button type="button" class="sidebar-nav-item" data-page="users-page" data-title="Użytkownicy panelu">
+                    <svg class="nav-icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="10" cy="6.5" r="3" stroke="currentColor" stroke-width="1.5"/><path d="M3.5 17c0-3.31 2.91-6 6.5-6s6.5 2.69 6.5 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M14.5 4.5 16 6l2-2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    <span>Użytkownicy panelu</span>
+                </button>
+                <button type="button" class="sidebar-nav-item" data-page="shipping-page" data-title="Metody dostawy">
+                    <svg class="nav-icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3 6h8v7H3z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M11 9h3.5L17 11.5V13h-6" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><circle cx="6" cy="14.5" r="1.4" stroke="currentColor" stroke-width="1.5"/><circle cx="14" cy="14.5" r="1.4" stroke="currentColor" stroke-width="1.5"/></svg>
+                    <span>Metody dostawy</span>
+                </button>
+                <button type="button" class="sidebar-nav-item" data-page="payment-methods-page" data-title="Metody płatności">
+                    <svg class="nav-icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2.5" y="5" width="15" height="10" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M2.5 8.5h15" stroke="currentColor" stroke-width="1.5"/><path d="M5 12h3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                    <span>Metody płatności</span>
+                </button>
+            </div>
+        </nav>
 
-            <div id="attributes-list"></div>
-        </section>
-    </main>
+        <div class="sidebar-footer">
+            <div class="sidebar-user">
+                <span class="sidebar-user-avatar" id="whoami-avatar"></span>
+                <span class="sidebar-user-name" id="whoami"></span>
+            </div>
+            <button type="button" id="logout-btn" class="sidebar-logout">
+                <svg class="nav-icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M7.5 17.5H4.75A1.25 1.25 0 0 1 3.5 16.25V3.75A1.25 1.25 0 0 1 4.75 2.5H7.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M13.5 14 17 10.5 13.5 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M17 10.5H7.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <span>Wyloguj</span>
+            </button>
+        </div>
+    </aside>
+
+    <div class="main">
+        <header class="main-topbar">
+            <h1 id="page-title">Produkty</h1>
+            <div class="main-topbar-actions">
+                <button id="add-product-btn" class="page-action" data-page-action="products-page">+ Dodaj produkt</button>
+                <button id="add-attribute-btn" class="page-action" data-page-action="attributes-page" hidden>+ Dodaj cechę</button>
+                <button id="add-category-btn" class="page-action" data-page-action="categories-page" hidden>+ Dodaj kategorię</button>
+                <button id="add-order-btn" class="page-action" data-page-action="orders-page" hidden>+ Nowe zamówienie</button>
+                <button id="add-client-btn" class="page-action" data-page-action="clients-page" hidden>+ Dodaj klienta</button>
+                <button id="add-cart-btn" class="page-action" data-page-action="carts-page" hidden>+ Nowy koszyk</button>
+                <button id="add-user-btn" class="page-action" data-page-action="users-page" hidden>+ Dodaj użytkownika</button>
+                <button id="add-shipping-btn" class="page-action" data-page-action="shipping-page" hidden>+ Dodaj metodę</button>
+                <button id="add-payment-method-btn" class="page-action" data-page-action="payment-methods-page" hidden>+ Dodaj metodę</button>
+            </div>
+        </header>
+
+        <main class="main-content">
+            <!-- Strona: Produkty -->
+            <section id="products-page" class="page">
+                <p id="list-error" class="error" hidden></p>
+
+                <table class="products-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>External ID</th>
+                            <th>SKU</th>
+                            <th>Nazwa</th>
+                            <th>Cena</th>
+                            <th>Aktywny</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="products-body">
+                        <tr><td colspan="7" class="muted">Ładowanie...</td></tr>
+                    </tbody>
+                </table>
+
+                <div class="pagination">
+                    <button id="prev-page" class="secondary">&larr; Poprzednia</button>
+                    <span id="page-indicator">Strona 1 z 1</span>
+                    <button id="next-page" class="secondary">Następna &rarr;</button>
+                    <select id="per-page">
+                        <option value="10">10 / stronę</option>
+                        <option value="15" selected>15 / stronę</option>
+                        <option value="25">25 / stronę</option>
+                        <option value="50">50 / stronę</option>
+                    </select>
+                </div>
+            </section>
+
+            <!-- Strona: Cechy -->
+            <section id="attributes-page" class="page" hidden>
+                <p id="attributes-error" class="error" hidden></p>
+
+                <div id="attributes-list"></div>
+            </section>
+
+            <!-- Podstrona: Dodaj / edytuj produkt (wraz z wariantami) -->
+            <section id="product-form-page" class="page" hidden>
+                <button type="button" id="product-form-back-btn" class="link-back">&larr; Powrót do produktów</button>
+
+                <form id="product-form" class="form-card">
+                    <div class="form-card-header">
+                        <h2 id="product-form-heading">Nowy produkt</h2>
+                        <div class="form-card-actions">
+                            <button type="button" id="product-cancel-btn" class="secondary">Anuluj</button>
+                            <button type="submit" id="product-save-btn">Zapisz produkt</button>
+                        </div>
+                    </div>
+
+                    <div class="form-grid">
+                        <div class="form-field">
+                            <label for="field-external-id">External ID</label>
+                            <input type="text" id="field-external-id" placeholder="np. ERP-1234">
+                        </div>
+                        <div class="form-field">
+                            <label for="field-sku">SKU *</label>
+                            <input type="text" id="field-sku" required>
+                        </div>
+                        <div class="form-field">
+                            <label for="field-name">Nazwa *</label>
+                            <input type="text" id="field-name" required>
+                        </div>
+                        <div class="form-field">
+                            <label for="field-price">Cena bazowa *</label>
+                            <input type="number" id="field-price" step="0.01" min="0" required>
+                        </div>
+                        <div class="form-field" id="field-ean-wrap">
+                            <label for="field-ean">EAN</label>
+                            <input type="text" id="field-ean" placeholder="np. 5901234123457">
+                        </div>
+                    </div>
+
+                    <p class="muted" id="field-ean-hint">EAN trafi do domyślnego wariantu tworzonego razem z produktem.</p>
+
+                    <label>Kategorie</label>
+                    <div id="field-categories" class="checkbox-group">
+                        <p class="muted">Brak zdefiniowanych kategorii.</p>
+                    </div>
+
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="field-active" checked>
+                        Aktywny
+                    </label>
+
+                    <p id="product-form-error" class="error" hidden></p>
+                </form>
+
+                <!-- Warianty - dostępne dopiero po zapisaniu produktu -->
+                <section id="product-variants-section" class="form-card" hidden>
+                    <div class="form-card-header">
+                        <h2>Warianty</h2>
+                    </div>
+
+                    <p id="variants-error" class="error" hidden></p>
+
+                    <table class="products-table">
+                        <thead>
+                            <tr>
+                                <th>SKU</th>
+                                <th>EAN</th>
+                                <th>Cena</th>
+                                <th>Stan</th>
+                                <th>Cechy</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody id="variants-body">
+                            <tr><td colspan="6" class="muted">Ładowanie...</td></tr>
+                        </tbody>
+                    </table>
+
+                    <hr class="modal-divider">
+
+                    <form id="variant-form" class="variant-inline-form">
+                        <h3 id="variant-form-title">Dodaj wariant</h3>
+
+                        <div class="form-grid">
+                            <div class="form-field">
+                                <label for="variant-external-id">External ID</label>
+                                <input type="text" id="variant-external-id" placeholder="np. ERP-1234">
+                            </div>
+                            <div class="form-field">
+                                <label for="variant-sku">SKU *</label>
+                                <input type="text" id="variant-sku" required>
+                            </div>
+                            <div class="form-field">
+                                <label for="variant-ean">EAN</label>
+                                <input type="text" id="variant-ean">
+                            </div>
+                            <div class="form-field">
+                                <label for="variant-price">Cena *</label>
+                                <input type="number" id="variant-price" step="0.01" min="0" required>
+                            </div>
+                            <div class="form-field">
+                                <label for="variant-stock">Stan magazynowy</label>
+                                <input type="number" id="variant-stock" step="1" min="0" value="0">
+                            </div>
+                        </div>
+
+                        <div id="variant-attributes-fields"></div>
+
+                        <p id="variant-form-error" class="error" hidden></p>
+
+                        <div class="modal-actions">
+                            <button type="button" id="variant-reset-btn" class="secondary">Nowy wariant</button>
+                            <button type="submit" id="variant-save-btn">Zapisz wariant</button>
+                        </div>
+                    </form>
+                </section>
+
+                <p id="product-variants-hint" class="muted">Zapisz produkt, aby dodać warianty.</p>
+            </section>
+
+            <!-- Strona: Kategorie -->
+            <section id="categories-page" class="page" hidden>
+                <p id="categories-error" class="error" hidden></p>
+
+                <table class="products-table">
+                    <thead>
+                        <tr>
+                            <th>Nazwa</th>
+                            <th>Slug</th>
+                            <th>Kategoria nadrzędna</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="categories-body">
+                        <tr><td colspan="4" class="muted">Ładowanie...</td></tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <!-- Strona: Klienci -->
+            <section id="clients-page" class="page" hidden>
+                <p id="clients-error" class="error" hidden></p>
+
+                <table class="products-table">
+                    <thead>
+                        <tr>
+                            <th>Imię i nazwisko</th>
+                            <th>Firma</th>
+                            <th>E-mail</th>
+                            <th>Typ</th>
+                            <th>Rabat</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="clients-body">
+                        <tr><td colspan="6" class="muted">Ładowanie...</td></tr>
+                    </tbody>
+                </table>
+
+                <div class="pagination">
+                    <button id="clients-prev-page" class="secondary">&larr; Poprzednia</button>
+                    <span id="clients-page-indicator">Strona 1 z 1</span>
+                    <button id="clients-next-page" class="secondary">Następna &rarr;</button>
+                </div>
+            </section>
+
+            <!-- Podstrona: Dodaj / edytuj klienta (wraz z adresami) -->
+            <section id="client-form-page" class="page" hidden>
+                <button type="button" id="client-form-back-btn" class="link-back">&larr; Powrót do klientów</button>
+
+                <form id="client-form" class="form-card">
+                    <div class="form-card-header">
+                        <h2 id="client-form-heading">Nowy klient</h2>
+                        <div class="form-card-actions">
+                            <button type="button" id="client-cancel-btn" class="secondary">Anuluj</button>
+                            <button type="submit" id="client-save-btn">Zapisz klienta</button>
+                        </div>
+                    </div>
+
+                    <div class="form-grid">
+                        <div class="form-field">
+                            <label for="client-first-name">Imię *</label>
+                            <input type="text" id="client-first-name" required>
+                        </div>
+                        <div class="form-field">
+                            <label for="client-last-name">Nazwisko *</label>
+                            <input type="text" id="client-last-name" required>
+                        </div>
+                        <div class="form-field">
+                            <label for="client-email">E-mail *</label>
+                            <input type="email" id="client-email" required>
+                        </div>
+                        <div class="form-field" id="client-password-wrap">
+                            <label for="client-password" id="client-password-label">Hasło *</label>
+                            <input type="password" id="client-password">
+                        </div>
+                        <div class="form-field">
+                            <label for="client-type">Typ klienta</label>
+                            <select id="client-type">
+                                <option value="b2c">B2C</option>
+                                <option value="b2b">B2B</option>
+                                <option value="gov">Sektor publiczny</option>
+                            </select>
+                        </div>
+                        <div class="form-field">
+                            <label for="client-company-name">Firma</label>
+                            <input type="text" id="client-company-name">
+                        </div>
+                        <div class="form-field">
+                            <label for="client-nip">NIP</label>
+                            <input type="text" id="client-nip">
+                        </div>
+                        <div class="form-field">
+                            <label for="client-discount">Rabat (%)</label>
+                            <input type="number" id="client-discount" step="0.01" min="0" max="100" value="0">
+                        </div>
+                    </div>
+
+                    <p id="client-form-error" class="error" hidden></p>
+                </form>
+
+                <!-- Adresy - dostępne dopiero po zapisaniu klienta -->
+                <section id="client-addresses-section" class="form-card" hidden>
+                    <div class="form-card-header">
+                        <h2>Adresy</h2>
+                    </div>
+
+                    <p id="addresses-error" class="error" hidden></p>
+
+                    <table class="products-table">
+                        <thead>
+                            <tr>
+                                <th>Typ</th>
+                                <th>Ulica</th>
+                                <th>Miasto</th>
+                                <th>Kod pocztowy</th>
+                                <th>Kraj</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody id="addresses-body">
+                            <tr><td colspan="6" class="muted">Ładowanie...</td></tr>
+                        </tbody>
+                    </table>
+
+                    <hr class="modal-divider">
+
+                    <form id="address-form" class="variant-inline-form">
+                        <h3>Dodaj adres</h3>
+
+                        <div class="form-grid">
+                            <div class="form-field">
+                                <label for="address-type">Typ *</label>
+                                <select id="address-type">
+                                    <option value="delivery">Dostawy</option>
+                                    <option value="billing">Rozliczeniowy</option>
+                                </select>
+                            </div>
+                            <div class="form-field">
+                                <label for="address-street">Ulica *</label>
+                                <input type="text" id="address-street" required>
+                            </div>
+                            <div class="form-field">
+                                <label for="address-city">Miasto *</label>
+                                <input type="text" id="address-city" required>
+                            </div>
+                            <div class="form-field">
+                                <label for="address-postal-code">Kod pocztowy *</label>
+                                <input type="text" id="address-postal-code" required>
+                            </div>
+                            <div class="form-field">
+                                <label for="address-country">Kraj *</label>
+                                <input type="text" id="address-country" required value="Polska">
+                            </div>
+                        </div>
+
+                        <p id="address-form-error" class="error" hidden></p>
+
+                        <div class="modal-actions">
+                            <button type="submit" id="address-save-btn">Dodaj adres</button>
+                        </div>
+                    </form>
+                </section>
+
+                <p id="client-addresses-hint" class="muted">Zapisz klienta, aby dodać adresy.</p>
+            </section>
+
+            <!-- Strona: Koszyki -->
+            <section id="carts-page" class="page" hidden>
+                <p id="carts-error" class="error" hidden></p>
+
+                <table class="products-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Nazwa</th>
+                            <th>Klient</th>
+                            <th>Status</th>
+                            <th>Pozycje</th>
+                            <th>Ostatnia aktywność</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="carts-body">
+                        <tr><td colspan="7" class="muted">Ładowanie...</td></tr>
+                    </tbody>
+                </table>
+
+                <div class="pagination">
+                    <button id="carts-prev-page" class="secondary">&larr; Poprzednia</button>
+                    <span id="carts-page-indicator">Strona 1 z 1</span>
+                    <button id="carts-next-page" class="secondary">Następna &rarr;</button>
+                </div>
+            </section>
+
+            <!-- Podstrona: Nowy / edytuj koszyk -->
+            <section id="cart-form-page" class="page" hidden>
+                <button type="button" id="cart-form-back-btn" class="link-back">&larr; Powrót do koszyków</button>
+
+                <form id="cart-form" class="form-card">
+                    <div class="form-card-header">
+                        <h2 id="cart-form-heading">Nowy koszyk</h2>
+                        <div class="form-card-actions">
+                            <button type="button" id="cart-cancel-btn" class="secondary">Anuluj</button>
+                            <button type="submit" id="cart-save-btn">Zapisz koszyk</button>
+                        </div>
+                    </div>
+
+                    <div class="form-grid">
+                        <div class="form-field">
+                            <label for="cart-name">Nazwa</label>
+                            <input type="text" id="cart-name" placeholder="np. Mój koszyk">
+                        </div>
+                        <div class="form-field">
+                            <label for="cart-client">Klient (jeśli zalogowany)</label>
+                            <select id="cart-client">
+                                <option value="">— gość (bez klienta) —</option>
+                            </select>
+                        </div>
+                        <div class="form-field" id="cart-status-wrap" hidden>
+                            <label for="cart-status">Status</label>
+                            <select id="cart-status"></select>
+                        </div>
+                        <div class="form-field" id="cart-token-wrap" hidden>
+                            <label for="cart-token">Token (storefront)</label>
+                            <input type="text" id="cart-token" readonly>
+                        </div>
+                    </div>
+
+                    <p id="cart-form-error" class="error" hidden></p>
+                </form>
+
+                <!-- Pozycje koszyka - dostępne dopiero po zapisaniu koszyka -->
+                <section id="cart-items-section" class="form-card" hidden>
+                    <div class="form-card-header">
+                        <h2>Pozycje</h2>
+                    </div>
+
+                    <p id="cart-items-error" class="error" hidden></p>
+
+                    <table class="products-table">
+                        <thead>
+                            <tr>
+                                <th>Wariant</th>
+                                <th>Ilość</th>
+                                <th>Cena</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody id="cart-items-body">
+                            <tr><td colspan="4" class="muted">Ładowanie...</td></tr>
+                        </tbody>
+                    </table>
+
+                    <hr class="modal-divider">
+
+                    <form id="cart-item-form" class="variant-inline-form">
+                        <h3>Dodaj pozycję</h3>
+
+                        <div class="form-grid">
+                            <div class="form-field">
+                                <label for="cart-item-product">Produkt</label>
+                                <select id="cart-item-product">
+                                    <option value="">— wybierz —</option>
+                                </select>
+                            </div>
+                            <div class="form-field">
+                                <label for="cart-item-variant">Wariant</label>
+                                <select id="cart-item-variant" disabled>
+                                    <option value="">— najpierw wybierz produkt —</option>
+                                </select>
+                            </div>
+                            <div class="form-field">
+                                <label for="cart-item-qty">Ilość</label>
+                                <input type="number" id="cart-item-qty" min="1" step="1" value="1">
+                            </div>
+                            <div class="form-field">
+                                <label for="cart-item-custom-price">Cena niestandardowa</label>
+                                <input type="number" id="cart-item-custom-price" step="0.01" min="0" placeholder="opcjonalnie">
+                            </div>
+                        </div>
+
+                        <p id="cart-item-form-error" class="error" hidden></p>
+
+                        <div class="modal-actions">
+                            <button type="submit" id="cart-item-save-btn">Dodaj pozycję</button>
+                        </div>
+                    </form>
+                </section>
+
+                <p id="cart-items-hint" class="muted">Zapisz koszyk, aby dodać pozycje.</p>
+            </section>
+
+            <!-- Strona: Zamówienia -->
+            <section id="orders-page" class="page" hidden>
+                <p id="orders-error" class="error" hidden></p>
+
+                <table class="products-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Klient</th>
+                            <th>Status</th>
+                            <th>Kwota</th>
+                            <th>Data</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="orders-body">
+                        <tr><td colspan="6" class="muted">Ładowanie...</td></tr>
+                    </tbody>
+                </table>
+
+                <div class="pagination">
+                    <button id="orders-prev-page" class="secondary">&larr; Poprzednia</button>
+                    <span id="orders-page-indicator">Strona 1 z 1</span>
+                    <button id="orders-next-page" class="secondary">Następna &rarr;</button>
+                </div>
+            </section>
+
+            <!-- Podstrona: Nowe / szczegóły zamówienia -->
+            <section id="order-form-page" class="page" hidden>
+                <button type="button" id="order-form-back-btn" class="link-back">&larr; Powrót do zamówień</button>
+
+                <form id="order-form" class="form-card">
+                    <div class="form-card-header">
+                        <h2 id="order-form-heading">Nowe zamówienie</h2>
+                        <div class="form-card-actions">
+                            <button type="button" id="order-cancel-btn" class="secondary">Anuluj</button>
+                            <button type="submit" id="order-save-btn">Utwórz zamówienie</button>
+                        </div>
+                    </div>
+
+                    <div class="form-grid">
+                        <div class="form-field">
+                            <label for="order-client">Klient *</label>
+                            <select id="order-client" required>
+                                <option value="">— wybierz —</option>
+                            </select>
+                        </div>
+                        <div class="form-field" id="order-status-wrap" hidden>
+                            <label for="order-status">Status</label>
+                            <select id="order-status"></select>
+                        </div>
+                        <div class="form-field">
+                            <label for="order-billing-address">Adres rozliczeniowy</label>
+                            <select id="order-billing-address">
+                                <option value="">— brak —</option>
+                            </select>
+                        </div>
+                        <div class="form-field">
+                            <label for="order-delivery-address">Adres dostawy</label>
+                            <select id="order-delivery-address">
+                                <option value="">— brak —</option>
+                            </select>
+                        </div>
+                        <div class="form-field">
+                            <label for="order-shipping-method">Metoda dostawy</label>
+                            <select id="order-shipping-method">
+                                <option value="">— brak —</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <p id="order-form-error" class="error" hidden></p>
+                </form>
+
+                <!-- Pozycje zamówienia -->
+                <section class="form-card">
+                    <div class="form-card-header">
+                        <h2>Pozycje</h2>
+                    </div>
+
+                    <table class="products-table">
+                        <thead>
+                            <tr>
+                                <th>Produkt / wariant</th>
+                                <th>Ilość</th>
+                                <th>Cena jedn.</th>
+                                <th>Suma</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody id="order-items-body">
+                            <tr><td colspan="5" class="muted">Brak pozycji.</td></tr>
+                        </tbody>
+                        <tfoot>
+                            <tr>
+                                <td colspan="3" class="order-total-label">Razem (z dostawą)</td>
+                                <td id="order-total-value">0.00</td>
+                                <td></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+
+                    <div class="order-item-picker" id="order-item-picker">
+                        <div class="form-field">
+                            <label for="order-item-product">Produkt</label>
+                            <select id="order-item-product">
+                                <option value="">— wybierz —</option>
+                            </select>
+                        </div>
+                        <div class="form-field">
+                            <label for="order-item-variant">Wariant</label>
+                            <select id="order-item-variant" disabled>
+                                <option value="">— najpierw wybierz produkt —</option>
+                            </select>
+                        </div>
+                        <div class="form-field">
+                            <label for="order-item-qty">Ilość</label>
+                            <input type="number" id="order-item-qty" min="1" step="1" value="1">
+                        </div>
+                        <button type="button" id="order-item-add-btn" class="secondary">+ Dodaj pozycję</button>
+                    </div>
+
+                    <p id="order-items-hint" class="muted" hidden>Pozycji zamówienia nie można edytować po jego utworzeniu.</p>
+                </section>
+
+                <!-- Płatności - dostępne po zapisaniu zamówienia -->
+                <section id="order-payments-section" class="form-card" hidden>
+                    <div class="form-card-header">
+                        <h2>Płatności</h2>
+                    </div>
+
+                    <p id="payments-error" class="error" hidden></p>
+
+                    <table class="products-table">
+                        <thead>
+                            <tr>
+                                <th>Kwota</th>
+                                <th>Metoda</th>
+                                <th>Status</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody id="payments-body">
+                            <tr><td colspan="4" class="muted">Brak płatności.</td></tr>
+                        </tbody>
+                    </table>
+
+                    <hr class="modal-divider">
+
+                    <form id="payment-form" class="variant-inline-form">
+                        <h3>Zarejestruj płatność</h3>
+
+                        <div class="form-grid">
+                            <div class="form-field">
+                                <label for="payment-amount">Kwota *</label>
+                                <input type="number" id="payment-amount" step="0.01" min="0" required>
+                            </div>
+                            <div class="form-field">
+                                <label for="payment-method">Metoda *</label>
+                                <select id="payment-method" required>
+                                    <option value="">— wybierz —</option>
+                                </select>
+                            </div>
+                            <div class="form-field">
+                                <label for="payment-status">Status</label>
+                                <select id="payment-status"></select>
+                            </div>
+                        </div>
+
+                        <p id="payment-form-error" class="error" hidden></p>
+
+                        <div class="modal-actions">
+                            <button type="submit" id="payment-save-btn">Zarejestruj</button>
+                        </div>
+                    </form>
+                </section>
+            </section>
+
+            <!-- Strona: Użytkownicy panelu -->
+            <section id="users-page" class="page" hidden>
+                <p id="users-error" class="error" hidden></p>
+
+                <table class="products-table">
+                    <thead>
+                        <tr>
+                            <th>Imię i nazwisko</th>
+                            <th>E-mail</th>
+                            <th>Rola</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="users-body">
+                        <tr><td colspan="4" class="muted">Ładowanie...</td></tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <!-- Strona: Metody dostawy -->
+            <section id="shipping-page" class="page" hidden>
+                <p id="shipping-error" class="error" hidden></p>
+
+                <table class="products-table">
+                    <thead>
+                        <tr>
+                            <th>Nazwa</th>
+                            <th>Cena</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="shipping-body">
+                        <tr><td colspan="3" class="muted">Ładowanie...</td></tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <!-- Strona: Metody płatności -->
+            <section id="payment-methods-page" class="page" hidden>
+                <p id="payment-methods-error" class="error" hidden></p>
+
+                <table class="products-table">
+                    <thead>
+                        <tr>
+                            <th>Nazwa</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="payment-methods-body">
+                        <tr><td colspan="2" class="muted">Ładowanie...</td></tr>
+                    </tbody>
+                </table>
+            </section>
+        </main>
+    </div>
 </section>
 
-<!-- Modal dodawania/edycji produktu -->
-<div id="product-modal" class="modal-overlay" hidden>
-    <form id="product-form" class="modal-card">
-        <h2 id="product-modal-title">Dodaj produkt</h2>
+<!-- Modal dodawania/edycji kategorii -->
+<div id="category-modal" class="modal-overlay" hidden>
+    <form id="category-form" class="modal-card modal-card-narrow">
+        <h2 id="category-modal-title">Dodaj kategorię</h2>
 
-        <label for="field-external-id">External ID</label>
-        <input type="text" id="field-external-id" placeholder="np. ERP-1234">
+        <label for="category-name">Nazwa *</label>
+        <input type="text" id="category-name" required>
 
-        <label for="field-sku">SKU *</label>
-        <input type="text" id="field-sku" required>
+        <label for="category-slug">Slug</label>
+        <input type="text" id="category-slug" placeholder="generowany automatycznie z nazwy">
 
-        <label for="field-name">Nazwa *</label>
-        <input type="text" id="field-name" required>
+        <label for="category-parent">Kategoria nadrzędna</label>
+        <select id="category-parent">
+            <option value="">— brak —</option>
+        </select>
 
-        <label for="field-price">Cena bazowa *</label>
-        <input type="number" id="field-price" step="0.01" min="0" required>
-
-        <label class="checkbox-label">
-            <input type="checkbox" id="field-active" checked>
-            Aktywny
-        </label>
-
-        <p id="product-form-error" class="error" hidden></p>
+        <p id="category-form-error" class="error" hidden></p>
 
         <div class="modal-actions">
-            <button type="button" id="product-cancel-btn" class="secondary">Anuluj</button>
-            <button type="submit" id="product-save-btn">Zapisz</button>
+            <button type="button" id="category-cancel-btn" class="secondary">Anuluj</button>
+            <button type="submit" id="category-save-btn">Zapisz</button>
         </div>
     </form>
 </div>
 
-<!-- Modal wariantów produktu -->
-<div id="variants-modal" class="modal-overlay" hidden>
-    <div class="modal-card modal-card-wide">
-        <div class="modal-header-row">
-            <h2 id="variants-modal-title">Warianty produktu</h2>
-            <button type="button" id="variants-close-btn" class="secondary">Zamknij</button>
+<!-- Modal dodawania/edycji użytkownika panelu -->
+<div id="user-modal" class="modal-overlay" hidden>
+    <form id="user-form" class="modal-card modal-card-narrow">
+        <h2 id="user-modal-title">Dodaj użytkownika</h2>
+
+        <label for="user-name">Imię i nazwisko *</label>
+        <input type="text" id="user-name" required>
+
+        <label for="user-email">E-mail *</label>
+        <input type="text" id="user-email" required>
+
+        <label for="user-password" id="user-password-label">Hasło *</label>
+        <input type="password" id="user-password">
+
+        <label for="user-role">Rola</label>
+        <select id="user-role">
+            <option value="admin">Admin</option>
+            <option value="superadmin">Superadmin</option>
+        </select>
+
+        <p id="user-form-error" class="error" hidden></p>
+
+        <div class="modal-actions">
+            <button type="button" id="user-cancel-btn" class="secondary">Anuluj</button>
+            <button type="submit" id="user-save-btn">Zapisz</button>
         </div>
+    </form>
+</div>
 
-        <p id="variants-error" class="error" hidden></p>
+<!-- Modal dodawania/edycji metody dostawy -->
+<div id="shipping-modal" class="modal-overlay" hidden>
+    <form id="shipping-form" class="modal-card modal-card-narrow">
+        <h2 id="shipping-modal-title">Dodaj metodę dostawy</h2>
 
-        <table class="products-table">
-            <thead>
-                <tr>
-                    <th>SKU</th>
-                    <th>EAN</th>
-                    <th>Cena</th>
-                    <th>Stan</th>
-                    <th>Cechy</th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody id="variants-body">
-                <tr><td colspan="6" class="muted">Ładowanie...</td></tr>
-            </tbody>
-        </table>
+        <label for="shipping-name">Nazwa *</label>
+        <input type="text" id="shipping-name" required>
 
-        <hr class="modal-divider">
+        <label for="shipping-rate">Cena *</label>
+        <input type="number" id="shipping-rate" step="0.01" min="0" required>
 
-        <form id="variant-form">
-            <h3 id="variant-form-title">Dodaj wariant</h3>
+        <p id="shipping-form-error" class="error" hidden></p>
 
-            <label for="variant-external-id">External ID</label>
-            <input type="text" id="variant-external-id" placeholder="np. ERP-1234">
+        <div class="modal-actions">
+            <button type="button" id="shipping-cancel-btn" class="secondary">Anuluj</button>
+            <button type="submit" id="shipping-save-btn">Zapisz</button>
+        </div>
+    </form>
+</div>
 
-            <label for="variant-sku">SKU *</label>
-            <input type="text" id="variant-sku" required>
+<!-- Modal dodawania/edycji metody płatności -->
+<div id="payment-method-modal" class="modal-overlay" hidden>
+    <form id="payment-method-form" class="modal-card modal-card-narrow">
+        <h2 id="payment-method-modal-title">Dodaj metodę płatności</h2>
 
-            <label for="variant-ean">EAN</label>
-            <input type="text" id="variant-ean">
+        <label for="payment-method-name">Nazwa *</label>
+        <input type="text" id="payment-method-name" placeholder="np. Karta płatnicza" required>
 
-            <label for="variant-price">Cena *</label>
-            <input type="number" id="variant-price" step="0.01" min="0" required>
+        <p id="payment-method-form-error" class="error" hidden></p>
 
-            <label for="variant-stock">Stan magazynowy</label>
-            <input type="number" id="variant-stock" step="1" min="0" value="0">
+        <div class="modal-actions">
+            <button type="button" id="payment-method-cancel-btn" class="secondary">Anuluj</button>
+            <button type="submit" id="payment-method-save-btn">Zapisz</button>
+        </div>
+    </form>
+</div>
 
-            <div id="variant-attributes-fields"></div>
+<!-- Modal tekstowy (zastępuje window.prompt - nazwa/wartość cechy) -->
+<div id="text-prompt-modal" class="modal-overlay" hidden>
+    <form id="text-prompt-form" class="modal-card modal-card-narrow">
+        <h2 id="text-prompt-title">Nazwa</h2>
 
-            <p id="variant-form-error" class="error" hidden></p>
+        <label for="text-prompt-input" id="text-prompt-label">Wartość</label>
+        <input type="text" id="text-prompt-input" required>
 
-            <div class="modal-actions">
-                <button type="button" id="variant-reset-btn" class="secondary">Nowy wariant</button>
-                <button type="submit" id="variant-save-btn">Zapisz</button>
-            </div>
-        </form>
+        <p id="text-prompt-error" class="error" hidden></p>
+
+        <div class="modal-actions">
+            <button type="button" id="text-prompt-cancel-btn" class="secondary">Anuluj</button>
+            <button type="submit" id="text-prompt-save-btn">Zapisz</button>
+        </div>
+    </form>
+</div>
+
+<!-- Modal potwierdzenia (zastępuje window.confirm) -->
+<div id="confirm-modal" class="modal-overlay" hidden>
+    <div class="modal-card modal-card-narrow">
+        <h2 id="confirm-modal-title">Potwierdź</h2>
+        <p id="confirm-modal-message" class="modal-message"></p>
+
+        <div class="modal-actions">
+            <button type="button" id="confirm-modal-cancel-btn" class="secondary">Anuluj</button>
+            <button type="button" id="confirm-modal-confirm-btn" class="danger">Usuń</button>
+        </div>
     </div>
 </div>
 

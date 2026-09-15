@@ -62,6 +62,7 @@ final readonly class AuthController
             'sub' => $user->id,
             'email' => $user->email,
             'role' => $user->role,
+            'type' => 'admin',
         ]);
 
         return $this->json($response, [

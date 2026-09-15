@@ -22,9 +22,6 @@ final class DocsController
 
     public function openApiJson(Request $request, Response $response): Response
     {
-        // E_DEPRECATED jest wyciszone globalnie w public/index.php (dotyczy
-        // też zircote/swagger-php, który wewnętrznie używa metod SplObjectStorage
-        // oznaczonych jako deprecated od PHP 8.5).
         $openapi = Generator::scan(self::SCAN_PATHS);
 
         $response->getBody()->write($openapi->toJson());

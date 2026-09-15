@@ -3,15 +3,31 @@
 declare(strict_types=1);
 
 use App\Bootstrap\Database;
+use App\Controllers\Admin\AddressController;
 use App\Controllers\Admin\AttributeController;
 use App\Controllers\Admin\AuthController;
+use App\Controllers\Admin\CartController;
+use App\Controllers\Admin\CartItemController;
+use App\Controllers\Admin\CategoryController;
+use App\Controllers\Admin\ClientController;
+use App\Controllers\Admin\OrderController;
+use App\Controllers\Admin\PaymentController;
+use App\Controllers\Admin\PaymentMethodController;
 use App\Controllers\Admin\ProductController as AdminProductController;
 use App\Controllers\Admin\ProductVariantController;
+use App\Controllers\Admin\ShippingMethodController;
+use App\Controllers\Admin\UserController;
 use App\Controllers\DocsController;
+use App\Controllers\Storefront\AuthController as StorefrontAuthController;
+use App\Controllers\Storefront\CartController as StorefrontCartController;
+use App\Controllers\Storefront\CheckoutController as StorefrontCheckoutController;
+use App\Controllers\Storefront\PaymentMethodController as StorefrontPaymentMethodController;
 use App\Controllers\Storefront\ProductController as StorefrontProductController;
+use App\Controllers\Storefront\ShippingMethodController as StorefrontShippingMethodController;
 use App\Database\Migrator;
 use App\Database\Seeder;
 use App\Middleware\AdminAuthMiddleware;
+use App\Middleware\StorefrontAuthMiddleware;
 use App\Support\Jwt;
 use Dotenv\Dotenv;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -21,13 +37,11 @@ use Slim\Routing\RouteCollectorProxy;
 
 require dirname(__DIR__) . '/vendor/autoload.php';
 
-// Część zależności (m.in. brick/math używany wewnątrz castów "decimal" w
-// illuminate/database, oraz zircote/swagger-php) nie jest jeszcze w pełni
-// zgodna z PHP 8.5 i emituje ostrzeżenia o deprecacji. brick/math zgłasza je
-// przez trigger_error(..., E_USER_DEPRECATED) - to INNY bit niż silnikowe
-// E_DEPRECATED, więc trzeba wykluczyć oba, inaczej nadal dopisują się do treści
-// odpowiedzi JSON i ją psują. To nie są błędy w naszym kodzie.
-error_reporting(E_ALL & ~E_DEPRECATED & ~E_USER_DEPRECATED);
+// display_errors domyślnie wypisuje błędy/ostrzeżenia (m.in. deprecacje z
+// brick/math przy odczycie castów "decimal") prosto do treści odpowiedzi,
+// co psuje JSON. Błędy mają trafiać do logu, nie do body odpowiedzi.
+ini_set('display_errors', '0');
+error_reporting(E_ALL);
 
 $rootPath = dirname(__DIR__);
 
@@ -55,6 +69,38 @@ $app->addBodyParsingMiddleware();
 $app->addRoutingMiddleware();
 $app->addErrorMiddleware($appDebug, true, true);
 
+// CORS - panel admina (backoffice) i sklep (storefront) są osobnymi aplikacjami
+// front-endowymi i mogą być serwowane z innych originów niż API. Middleware
+// dodany jako ostatni jest wykonywany jako pierwszy (najbardziej zewnętrzna
+// warstwa), dzięki czemu przechwytuje żądania OPTIONS (preflight) zanim
+// trafią do routingu.
+//
+// CORS_ALLOWED_ORIGIN to `*` (domyślnie, dev) albo lista originów po przecinku
+// (produkcyjnie, np. `https://sklep.example.com,https://admin.example.com`) -
+// nagłówek Access-Control-Allow-Origin może nieść tylko jedną wartość, więc przy
+// liście odbijamy Origin żądania tylko wtedy, gdy jest na liście.
+$corsAllowedOrigin = $_ENV['CORS_ALLOWED_ORIGIN'] ?? '*';
+$app->add(function (Request $request, $handler) use ($corsAllowedOrigin): Response {
+    if ($request->getMethod() === 'OPTIONS') {
+        $response = new \Slim\Psr7\Response();
+    } else {
+        $response = $handler->handle($request);
+    }
+
+    $allowOrigin = $corsAllowedOrigin;
+
+    if ($corsAllowedOrigin !== '*' && str_contains($corsAllowedOrigin, ',')) {
+        $allowedOrigins = array_map('trim', explode(',', $corsAllowedOrigin));
+        $requestOrigin = $request->getHeaderLine('Origin');
+        $allowOrigin = in_array($requestOrigin, $allowedOrigins, true) ? $requestOrigin : $allowedOrigins[0];
+    }
+
+    return $response
+        ->withHeader('Access-Control-Allow-Origin', $allowOrigin)
+        ->withHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+        ->withHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+});
+
 $jwt = new Jwt(
     secret: $_ENV['JWT_SECRET'] ?? 'change-this-to-a-random-secret-of-at-least-32-chars',
     ttlSeconds: (int) ($_ENV['JWT_TTL'] ?? 3600),
@@ -64,7 +110,22 @@ $authController = new AuthController($jwt);
 $adminProductController = new AdminProductController();
 $attributeController = new AttributeController();
 $variantController = new ProductVariantController();
+$categoryController = new CategoryController();
+$clientController = new ClientController();
+$addressController = new AddressController();
+$shippingMethodController = new ShippingMethodController();
+$paymentMethodController = new PaymentMethodController();
+$orderController = new OrderController();
+$paymentController = new PaymentController();
+$userController = new UserController();
+$cartController = new CartController();
+$cartItemController = new CartItemController();
 $storefrontProductController = new StorefrontProductController();
+$storefrontCartController = new StorefrontCartController();
+$storefrontAuthController = new StorefrontAuthController($jwt);
+$storefrontCheckoutController = new StorefrontCheckoutController($jwt);
+$storefrontShippingMethodController = new StorefrontShippingMethodController();
+$storefrontPaymentMethodController = new StorefrontPaymentMethodController();
 $docsController = new DocsController();
 
 // 5. Strona startowa + dokumentacja API (Swagger UI)
@@ -83,7 +144,38 @@ $app->get('/', function (Request $request, Response $response): Response {
             'PUT|DELETE /api/admin/attribute-values/{id} (Bearer JWT)',
             'GET|POST /api/admin/products/{productId}/variants (Bearer JWT)',
             'PUT|DELETE /api/admin/variants/{id} (Bearer JWT)',
+            'GET|POST /api/admin/categories (Bearer JWT)',
+            'PUT|DELETE /api/admin/categories/{id} (Bearer JWT)',
+            'GET|POST /api/admin/clients (Bearer JWT)',
+            'GET|PUT|DELETE /api/admin/clients/{id} (Bearer JWT)',
+            'POST /api/admin/clients/{clientId}/addresses (Bearer JWT)',
+            'PUT|DELETE /api/admin/addresses/{id} (Bearer JWT)',
+            'GET|POST /api/admin/shipping-methods (Bearer JWT)',
+            'PUT|DELETE /api/admin/shipping-methods/{id} (Bearer JWT)',
+            'GET|POST /api/admin/payment-methods (Bearer JWT)',
+            'PUT|DELETE /api/admin/payment-methods/{id} (Bearer JWT)',
+            'GET|POST /api/admin/orders (Bearer JWT)',
+            'GET|PUT|DELETE /api/admin/orders/{id} (Bearer JWT)',
+            'POST /api/admin/orders/{orderId}/payments (Bearer JWT)',
+            'DELETE /api/admin/payments/{id} (Bearer JWT)',
+            'GET|POST /api/admin/users (Bearer JWT)',
+            'PUT|DELETE /api/admin/users/{id} (Bearer JWT)',
+            'GET|POST /api/admin/carts (Bearer JWT)',
+            'GET|PUT|DELETE /api/admin/carts/{id} (Bearer JWT)',
+            'POST /api/admin/carts/{cartId}/items (Bearer JWT)',
+            'PUT|DELETE /api/admin/cart-items/{id} (Bearer JWT)',
             'GET /api/storefront/products',
+            'GET /api/storefront/products/{id}',
+            'POST /api/storefront/register',
+            'POST /api/storefront/login',
+            'GET /api/storefront/me (Bearer JWT)',
+            'POST /api/storefront/checkout',
+            'GET /api/storefront/shipping-methods',
+            'GET /api/storefront/payment-methods',
+            'POST /api/storefront/carts',
+            'GET|PUT /api/storefront/carts/{token}',
+            'POST /api/storefront/carts/{token}/items',
+            'PUT|DELETE /api/storefront/carts/{token}/items/{itemId}',
         ],
     ];
 
@@ -96,10 +188,40 @@ $app->get('/openapi.json', [$docsController, 'openApiJson']);
 $app->get('/docs', [$docsController, 'ui']);
 
 // 6. Trasy panelu admina (api/admin) - login publiczny, reszta chroniona JWT
-$app->group('/api/admin', function (RouteCollectorProxy $group) use ($authController, $adminProductController, $attributeController, $variantController, $jwt): void {
+$app->group('/api/admin', function (RouteCollectorProxy $group) use (
+    $authController,
+    $adminProductController,
+    $attributeController,
+    $variantController,
+    $categoryController,
+    $clientController,
+    $addressController,
+    $shippingMethodController,
+    $paymentMethodController,
+    $orderController,
+    $paymentController,
+    $userController,
+    $cartController,
+    $cartItemController,
+    $jwt,
+): void {
     $group->post('/login', [$authController, 'login']);
 
-    $group->group('', function (RouteCollectorProxy $group) use ($adminProductController, $attributeController, $variantController): void {
+    $group->group('', function (RouteCollectorProxy $group) use (
+        $adminProductController,
+        $attributeController,
+        $variantController,
+        $categoryController,
+        $clientController,
+        $addressController,
+        $shippingMethodController,
+        $paymentMethodController,
+        $orderController,
+        $paymentController,
+        $userController,
+        $cartController,
+        $cartItemController,
+    ): void {
         $group->get('/products', [$adminProductController, 'list']);
         $group->get('/products/{id:[0-9]+}', [$adminProductController, 'show']);
         $group->post('/products', [$adminProductController, 'create']);
@@ -118,12 +240,82 @@ $app->group('/api/admin', function (RouteCollectorProxy $group) use ($authContro
         $group->post('/products/{productId:[0-9]+}/variants', [$variantController, 'create']);
         $group->put('/variants/{id:[0-9]+}', [$variantController, 'update']);
         $group->delete('/variants/{id:[0-9]+}', [$variantController, 'delete']);
+
+        $group->get('/categories', [$categoryController, 'list']);
+        $group->post('/categories', [$categoryController, 'create']);
+        $group->put('/categories/{id:[0-9]+}', [$categoryController, 'update']);
+        $group->delete('/categories/{id:[0-9]+}', [$categoryController, 'delete']);
+
+        $group->get('/clients', [$clientController, 'list']);
+        $group->get('/clients/{id:[0-9]+}', [$clientController, 'show']);
+        $group->post('/clients', [$clientController, 'create']);
+        $group->put('/clients/{id:[0-9]+}', [$clientController, 'update']);
+        $group->delete('/clients/{id:[0-9]+}', [$clientController, 'delete']);
+        $group->post('/clients/{clientId:[0-9]+}/addresses', [$addressController, 'create']);
+        $group->put('/addresses/{id:[0-9]+}', [$addressController, 'update']);
+        $group->delete('/addresses/{id:[0-9]+}', [$addressController, 'delete']);
+
+        $group->get('/shipping-methods', [$shippingMethodController, 'list']);
+        $group->post('/shipping-methods', [$shippingMethodController, 'create']);
+        $group->put('/shipping-methods/{id:[0-9]+}', [$shippingMethodController, 'update']);
+        $group->delete('/shipping-methods/{id:[0-9]+}', [$shippingMethodController, 'delete']);
+
+        $group->get('/payment-methods', [$paymentMethodController, 'list']);
+        $group->post('/payment-methods', [$paymentMethodController, 'create']);
+        $group->put('/payment-methods/{id:[0-9]+}', [$paymentMethodController, 'update']);
+        $group->delete('/payment-methods/{id:[0-9]+}', [$paymentMethodController, 'delete']);
+
+        $group->get('/orders', [$orderController, 'list']);
+        $group->get('/orders/{id:[0-9]+}', [$orderController, 'show']);
+        $group->post('/orders', [$orderController, 'create']);
+        $group->put('/orders/{id:[0-9]+}', [$orderController, 'update']);
+        $group->delete('/orders/{id:[0-9]+}', [$orderController, 'delete']);
+        $group->post('/orders/{orderId:[0-9]+}/payments', [$paymentController, 'create']);
+        $group->delete('/payments/{id:[0-9]+}', [$paymentController, 'delete']);
+
+        $group->get('/users', [$userController, 'list']);
+        $group->post('/users', [$userController, 'create']);
+        $group->put('/users/{id:[0-9]+}', [$userController, 'update']);
+        $group->delete('/users/{id:[0-9]+}', [$userController, 'delete']);
+
+        $group->get('/carts', [$cartController, 'list']);
+        $group->get('/carts/{id:[0-9]+}', [$cartController, 'show']);
+        $group->post('/carts', [$cartController, 'create']);
+        $group->put('/carts/{id:[0-9]+}', [$cartController, 'update']);
+        $group->delete('/carts/{id:[0-9]+}', [$cartController, 'delete']);
+        $group->post('/carts/{cartId:[0-9]+}/items', [$cartItemController, 'create']);
+        $group->put('/cart-items/{id:[0-9]+}', [$cartItemController, 'update']);
+        $group->delete('/cart-items/{id:[0-9]+}', [$cartItemController, 'delete']);
     })->add(new AdminAuthMiddleware($jwt));
 });
 
-// 7. Trasy sklepu (api/storefront) - publiczne
-$app->group('/api/storefront', function (RouteCollectorProxy $group) use ($storefrontProductController): void {
+// 7. Trasy sklepu (api/storefront) - publiczne, poza /me (wymaga tokenu klienta)
+$app->group('/api/storefront', function (RouteCollectorProxy $group) use (
+    $storefrontProductController,
+    $storefrontCartController,
+    $storefrontAuthController,
+    $storefrontCheckoutController,
+    $storefrontShippingMethodController,
+    $storefrontPaymentMethodController,
+    $jwt,
+): void {
     $group->get('/products', [$storefrontProductController, 'list']);
+    $group->get('/products/{id:[0-9]+}', [$storefrontProductController, 'show']);
+
+    $group->post('/register', [$storefrontAuthController, 'register']);
+    $group->post('/login', [$storefrontAuthController, 'login']);
+    $group->get('/me', [$storefrontAuthController, 'me'])->add(new StorefrontAuthMiddleware($jwt));
+
+    $group->post('/checkout', [$storefrontCheckoutController, 'checkout']);
+    $group->get('/shipping-methods', [$storefrontShippingMethodController, 'list']);
+    $group->get('/payment-methods', [$storefrontPaymentMethodController, 'list']);
+
+    $group->post('/carts', [$storefrontCartController, 'create']);
+    $group->get('/carts/{token}', [$storefrontCartController, 'show']);
+    $group->put('/carts/{token}', [$storefrontCartController, 'update']);
+    $group->post('/carts/{token}/items', [$storefrontCartController, 'addItem']);
+    $group->put('/carts/{token}/items/{itemId:[0-9]+}', [$storefrontCartController, 'updateItem']);
+    $group->delete('/carts/{token}/items/{itemId:[0-9]+}', [$storefrontCartController, 'removeItem']);
 });
 
 $app->run();

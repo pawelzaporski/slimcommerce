@@ -36,6 +36,10 @@ final readonly class AdminAuthMiddleware implements MiddlewareInterface
             return $this->unauthorized();
         }
 
+        if (($claims['type'] ?? null) !== 'admin') {
+            return $this->unauthorized();
+        }
+
         return $handler->handle($request->withAttribute('authUser', $claims));
     }
 
