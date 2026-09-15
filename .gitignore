@@ -1,0 +1,18 @@
+# Zależności
+node_modules/
+vendor/
+
+# Sekrety / środowisko
+.env
+.env.*
+!.env.example
+
+# Baza danych / artefakty uruchomieniowe
+*.sqlite
+*.sqlite3
+
+# System / edytor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

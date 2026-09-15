@@ -1,0 +1,16 @@
+{
+    "name": "slimcommerce-backoffice",
+    "version": "1.0.0",
+    "description": "Panel admina slimCommerce (Electron) - logowanie i zarządzanie produktami",
+    "main": "main.js",
+    "private": true,
+    "scripts": {
+        "start": "electron ."
+    },
+    "devDependencies": {
+        "electron": "^32.0.0"
+    },
+    "allowScripts": {
+        "electron@32.3.3": true
+    }
+}

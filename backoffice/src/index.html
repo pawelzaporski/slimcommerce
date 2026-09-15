@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<title>slimCommerce — panel admina</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- Ekran logowania -->
+<section id="login-view" class="view">
+    <form id="login-form" class="login-card">
+        <h1>slimCommerce</h1>
+        <p class="subtitle">Panel admina</p>
+
+        <label for="api-base">Adres API</label>
+        <input type="text" id="api-base" placeholder="http://localhost:8080" required>
+
+        <label for="email">Login</label>
+        <input type="text" id="email" placeholder="superadmin" required autocomplete="username">
+
+        <label for="password">Hasło</label>
+        <input type="password" id="password" required autocomplete="current-password">
+
+        <p id="login-error" class="error" hidden></p>
+
+        <button type="submit" id="login-submit">Zaloguj</button>
+    </form>
+</section>
+
+<!-- Ekran główny -->
+<section id="app-view" class="view" hidden>
+    <header class="topbar">
+        <div>
+            <strong>slimCommerce</strong>
+            <span class="muted" id="whoami"></span>
+        </div>
+        <button id="logout-btn" class="secondary">Wyloguj</button>
+    </header>
+
+    <nav class="tabs">
+        <button type="button" class="tab-btn" data-page="products-page">Produkty</button>
+        <button type="button" class="tab-btn" data-page="attributes-page">Cechy</button>
+    </nav>
+
+    <main class="content">
+        <!-- Strona: Produkty -->
+        <section id="products-page" class="page">
+            <div class="page-toolbar">
+                <button id="add-product-btn">+ Dodaj produkt</button>
+            </div>
+
+            <p id="list-error" class="error" hidden></p>
+
+            <table class="products-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>External ID</th>
+                        <th>SKU</th>
+                        <th>Nazwa</th>
+                        <th>Cena</th>
+                        <th>Aktywny</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="products-body">
+                    <tr><td colspan="7" class="muted">Ładowanie...</td></tr>
+                </tbody>
+            </table>
+
+            <div class="pagination">
+                <button id="prev-page" class="secondary">&larr; Poprzednia</button>
+                <span id="page-indicator">Strona 1 z 1</span>
+                <button id="next-page" class="secondary">Następna &rarr;</button>
+                <select id="per-page">
+                    <option value="10">10 / stronę</option>
+                    <option value="15" selected>15 / stronę</option>
+                    <option value="25">25 / stronę</option>
+                    <option value="50">50 / stronę</option>
+                </select>
+            </div>
+        </section>
+
+        <!-- Strona: Cechy -->
+        <section id="attributes-page" class="page" hidden>
+            <div class="page-toolbar">
+                <button id="add-attribute-btn">+ Dodaj cechę</button>
+            </div>
+
+            <p id="attributes-error" class="error" hidden></p>
+
+            <div id="attributes-list"></div>
+        </section>
+    </main>
+</section>
+
+<!-- Modal dodawania/edycji produktu -->
+<div id="product-modal" class="modal-overlay" hidden>
+    <form id="product-form" class="modal-card">
+        <h2 id="product-modal-title">Dodaj produkt</h2>
+
+        <label for="field-external-id">External ID</label>
+        <input type="text" id="field-external-id" placeholder="np. ERP-1234">
+
+        <label for="field-sku">SKU *</label>
+        <input type="text" id="field-sku" required>
+
+        <label for="field-name">Nazwa *</label>
+        <input type="text" id="field-name" required>
+
+        <label for="field-price">Cena bazowa *</label>
+        <input type="number" id="field-price" step="0.01" min="0" required>
+
+        <label class="checkbox-label">
+            <input type="checkbox" id="field-active" checked>
+            Aktywny
+        </label>
+
+        <p id="product-form-error" class="error" hidden></p>
+
+        <div class="modal-actions">
+            <button type="button" id="product-cancel-btn" class="secondary">Anuluj</button>
+            <button type="submit" id="product-save-btn">Zapisz</button>
+        </div>
+    </form>
+</div>
+
+<!-- Modal wariantów produktu -->
+<div id="variants-modal" class="modal-overlay" hidden>
+    <div class="modal-card modal-card-wide">
+        <div class="modal-header-row">
+            <h2 id="variants-modal-title">Warianty produktu</h2>
+            <button type="button" id="variants-close-btn" class="secondary">Zamknij</button>
+        </div>
+
+        <p id="variants-error" class="error" hidden></p>
+
+        <table class="products-table">
+            <thead>
+                <tr>
+                    <th>SKU</th>
+                    <th>EAN</th>
+                    <th>Cena</th>
+                    <th>Stan</th>
+                    <th>Cechy</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody id="variants-body">
+                <tr><td colspan="6" class="muted">Ładowanie...</td></tr>
+            </tbody>
+        </table>
+
+        <hr class="modal-divider">
+
+        <form id="variant-form">
+            <h3 id="variant-form-title">Dodaj wariant</h3>
+
+            <label for="variant-external-id">External ID</label>
+            <input type="text" id="variant-external-id" placeholder="np. ERP-1234">
+
+            <label for="variant-sku">SKU *</label>
+            <input type="text" id="variant-sku" required>
+
+            <label for="variant-ean">EAN</label>
+            <input type="text" id="variant-ean">
+
+            <label for="variant-price">Cena *</label>
+            <input type="number" id="variant-price" step="0.01" min="0" required>
+
+            <label for="variant-stock">Stan magazynowy</label>
+            <input type="number" id="variant-stock" step="1" min="0" value="0">
+
+            <div id="variant-attributes-fields"></div>
+
+            <p id="variant-form-error" class="error" hidden></p>
+
+            <div class="modal-actions">
+                <button type="button" id="variant-reset-btn" class="secondary">Nowy wariant</button>
+                <button type="submit" id="variant-save-btn">Zapisz</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Log ostatnich zapytań API -->
+<footer id="request-log" class="request-log">
+    <button type="button" id="request-log-toggle" class="request-log-toggle">
+        <span id="request-log-summary">Brak zapytań</span>
+        <span id="request-log-chevron">&#9650;</span>
+    </button>
+    <div id="request-log-body" class="request-log-body" hidden>
+        <ul id="request-log-list"></ul>
+    </div>
+</footer>
+
+<script src="renderer.js"></script>
+</body>
+</html>
