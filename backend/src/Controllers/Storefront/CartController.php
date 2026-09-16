@@ -65,7 +65,7 @@ final class CartController
             $cart->save();
         }
 
-        return $this->json($response, $cart->load('items.variant')->toArray(), 201);
+        return $this->json($response, $cart->load('items.variant.product.image1')->toArray(), 201);
     }
 
     #[OA\Get(
@@ -86,7 +86,7 @@ final class CartController
             return $this->json($response, ['error' => 'Koszyk nie istnieje.'], 404);
         }
 
-        return $this->json($response, $cart->load('items.variant')->toArray());
+        return $this->json($response, $cart->load('items.variant.product.image1')->toArray());
     }
 
     #[OA\Put(
@@ -126,7 +126,7 @@ final class CartController
         $cart->last_interaction_at = date('Y-m-d H:i:s');
         $cart->save();
 
-        return $this->json($response, $cart->load('items.variant')->toArray());
+        return $this->json($response, $cart->load('items.variant.product.image1')->toArray());
     }
 
     #[OA\Post(
@@ -183,7 +183,7 @@ final class CartController
         $cart->last_interaction_at = date('Y-m-d H:i:s');
         $cart->save();
 
-        return $this->json($response, $item->load('variant')->toArray(), 201);
+        return $this->json($response, $item->load('variant.product.image1')->toArray(), 201);
     }
 
     #[OA\Put(
@@ -224,7 +224,7 @@ final class CartController
         $item->cart->last_interaction_at = date('Y-m-d H:i:s');
         $item->cart->save();
 
-        return $this->json($response, $item->load('variant')->toArray());
+        return $this->json($response, $item->load('variant.product.image1')->toArray());
     }
 
     #[OA\Delete(

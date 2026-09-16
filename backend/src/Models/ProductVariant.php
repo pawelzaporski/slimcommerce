@@ -25,6 +25,7 @@ use OpenApi\Attributes as OA;
             type: 'array',
             items: new OA\Items(ref: '#/components/schemas/AttributeValue')
         ),
+        new OA\Property(property: 'product', ref: '#/components/schemas/Product', nullable: true, description: 'Produkt nadrzędny (z image1/image2) - obecny tam, gdzie API dociąga tę relację, np. w pozycjach koszyka'),
     ]
 )]
 final class ProductVariant extends Model

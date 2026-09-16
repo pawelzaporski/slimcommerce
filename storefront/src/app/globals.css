@@ -1,26 +1,254 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@theme {
+  --color-brand: #e80080;
+  --color-brand-dark: #c4006c;
+  --color-rose: #f9c9da;
+  --color-rose-light: #fdeef3;
+  --color-ink: #111111;
+  --color-smoke: #f4f4f4;
+  --color-plum: #6f2c91;
+  --color-lemon: #f5e625;
+  --color-muted: #6b6b6b;
+
+  --font-sans: var(--font-body), "Segoe UI", Arial, sans-serif;
+  --font-display: var(--font-display), "Arial Narrow", sans-serif;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  color-scheme: light;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: #ffffff;
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Szerokość treści */
+.container-x {
+  width: 100%;
+  max-width: 80rem;
+  margin-inline: auto;
+  padding-inline: 1rem;
+}
+
+@media (min-width: 768px) {
+  .container-x {
+    padding-inline: 1.5rem;
+  }
+}
+
+/* Kondensowane nagłówki wersalikami (jak w drogeriach) */
+.display {
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: -0.01em;
+  line-height: 1.05;
+  font-weight: 700;
+}
+
+/* Przyciski - pigułki */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 9999px;
+  padding: 0.8rem 1.6rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+}
+
+.btn:active {
+  transform: translateY(1px);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-brand {
+  background: var(--color-brand);
+  color: #fff;
+}
+
+.btn-brand:hover:not(:disabled) {
+  background: var(--color-brand-dark);
+}
+
+.btn-black {
+  background: var(--color-ink);
+  color: #fff;
+}
+
+.btn-black:hover:not(:disabled) {
+  background: #333;
+}
+
+.btn-outline {
+  background: transparent;
+  color: var(--color-ink);
+  border-color: var(--color-ink);
+}
+
+.btn-outline:hover:not(:disabled) {
+  background: var(--color-ink);
+  color: #fff;
+}
+
+.btn-white {
+  background: #fff;
+  color: var(--color-ink);
+}
+
+.btn-white:hover:not(:disabled) {
+  background: var(--color-smoke);
+}
+
+.btn-sm {
+  padding: 0.55rem 1.1rem;
+  font-size: 0.7rem;
+}
+
+.btn-lg {
+  padding: 1rem 2.2rem;
+  font-size: 0.9rem;
+}
+
+/* Pola formularzy */
+.field {
+  display: block;
+  width: 100%;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  background: #fff;
+  padding: 0.7rem 0.9rem;
+  font-size: 0.95rem;
+  color: var(--color-ink);
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.field:focus {
+  border-color: var(--color-brand);
+  box-shadow: 0 0 0 3px rgba(232, 0, 128, 0.15);
+}
+
+.field-label {
+  display: block;
+  margin-bottom: 0.3rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+
+/* Etykiety na kartach produktów */
+.badge {
+  display: inline-block;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #fff;
+  line-height: 1.2;
+}
+
+.badge-brand {
+  background: var(--color-brand);
+}
+
+.badge-plum {
+  background: var(--color-plum);
+}
+
+.badge-ink {
+  background: var(--color-ink);
+}
+
+/* Karta */
+.card {
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 1rem;
+}
+
+/* Linki w czarnym pasku / nawigacji */
+.nav-link {
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+  font-size: 0.82rem;
+  white-space: nowrap;
+  transition: color 0.15s ease;
+}
+
+.nav-link:hover {
+  color: var(--color-brand);
+}
+
+/* Treści statyczne (regulamin, pomoc, o nas) */
+.prose-plain h2 {
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  font-weight: 700;
+  font-size: 1.5rem;
+  margin-top: 2rem;
+  margin-bottom: 0.6rem;
+}
+
+.prose-plain h3 {
+  font-weight: 700;
+  font-size: 1.05rem;
+  margin-top: 1.4rem;
+  margin-bottom: 0.4rem;
+}
+
+.prose-plain p,
+.prose-plain li {
+  color: #333;
+  line-height: 1.65;
+}
+
+.prose-plain p + p {
+  margin-top: 0.75rem;
+}
+
+.prose-plain ul,
+.prose-plain ol {
+  margin: 0.5rem 0 0.75rem 1.25rem;
+  list-style: disc;
+}
+
+.prose-plain ol {
+  list-style: decimal;
+}
+
+.prose-plain a {
+  color: var(--color-brand);
+  text-decoration: underline;
+}
+
+/* Ukrycie scrollbara w poziomych listach chipów */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }

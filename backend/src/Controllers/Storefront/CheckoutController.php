@@ -175,7 +175,7 @@ final readonly class CheckoutController
 
         return $this->json($response, [
             'token' => $this->jwt->issue(['sub' => $order->client_id, 'email' => $order->client->email, 'type' => 'client']),
-            'order' => $order->load(['client', 'billingAddress', 'deliveryAddress', 'shippingMethod', 'items.variant', 'payments'])->toArray(),
+            'order' => $order->load(['client', 'billingAddress', 'deliveryAddress', 'shippingMethod', 'items.variant.product.image1', 'payments'])->toArray(),
         ], 201);
     }
 

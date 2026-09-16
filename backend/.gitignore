@@ -2,3 +2,5 @@
 /.env
 /database/database.sqlite
 /public/openapi.json
+/public/uploads/*
+!/public/uploads/.gitkeep

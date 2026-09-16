@@ -35,71 +35,95 @@ export default function RegisterPage() {
     }
   }
 
+  const fieldError = (name: string) =>
+    errors[name] ? <p className="mt-1 text-xs font-semibold text-red-600">{errors[name]}</p> : null;
+
   return (
-    <div className="mx-auto max-w-sm">
-      <h1 className="mb-6 text-2xl font-semibold">Załóż konto</h1>
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <label className="block text-sm">
-          Imię
-          <input
-            required
-            value={firstName}
-            onChange={(event) => setFirstName(event.target.value)}
-            className="mt-1 block w-full rounded border border-black/15 bg-transparent px-3 py-2 dark:border-white/20"
-          />
-          {errors.first_name && <span className="text-sm text-red-600 dark:text-red-400">{errors.first_name}</span>}
-        </label>
-        <label className="block text-sm">
-          Nazwisko
-          <input
-            required
-            value={lastName}
-            onChange={(event) => setLastName(event.target.value)}
-            className="mt-1 block w-full rounded border border-black/15 bg-transparent px-3 py-2 dark:border-white/20"
-          />
-          {errors.last_name && <span className="text-sm text-red-600 dark:text-red-400">{errors.last_name}</span>}
-        </label>
-        <label className="block text-sm">
-          E-mail
-          <input
-            type="email"
-            required
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            className="mt-1 block w-full rounded border border-black/15 bg-transparent px-3 py-2 dark:border-white/20"
-          />
-          {errors.email && <span className="text-sm text-red-600 dark:text-red-400">{errors.email}</span>}
-        </label>
-        <label className="block text-sm">
-          Hasło
-          <input
-            type="password"
-            required
-            minLength={6}
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            className="mt-1 block w-full rounded border border-black/15 bg-transparent px-3 py-2 dark:border-white/20"
-          />
-          {errors.password && <span className="text-sm text-red-600 dark:text-red-400">{errors.password}</span>}
-        </label>
+    <div className="container-x py-10">
+      <div className="mx-auto max-w-xl">
+        <div className="card p-8">
+          <h1 className="display text-3xl">Załóż konto</h1>
+          <p className="mt-2 text-sm text-muted">Zajmie to mniej niż minutę.</p>
 
-        {errors.form && <p className="text-sm text-red-600 dark:text-red-400">{errors.form}</p>}
+          <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label htmlFor="first_name" className="field-label">
+                  Imię
+                </label>
+                <input
+                  id="first_name"
+                  required
+                  autoComplete="given-name"
+                  value={firstName}
+                  onChange={(event) => setFirstName(event.target.value)}
+                  className="field"
+                />
+                {fieldError('first_name')}
+              </div>
+              <div>
+                <label htmlFor="last_name" className="field-label">
+                  Nazwisko
+                </label>
+                <input
+                  id="last_name"
+                  required
+                  autoComplete="family-name"
+                  value={lastName}
+                  onChange={(event) => setLastName(event.target.value)}
+                  className="field"
+                />
+                {fieldError('last_name')}
+              </div>
+            </div>
+            <div>
+              <label htmlFor="email" className="field-label">
+                E-mail
+              </label>
+              <input
+                id="email"
+                type="email"
+                required
+                autoComplete="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                className="field"
+              />
+              {fieldError('email')}
+            </div>
+            <div>
+              <label htmlFor="password" className="field-label">
+                Hasło
+              </label>
+              <input
+                id="password"
+                type="password"
+                required
+                minLength={6}
+                autoComplete="new-password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                className="field"
+              />
+              <p className="mt-1 text-xs text-muted">Minimum 6 znaków.</p>
+              {fieldError('password')}
+            </div>
 
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full rounded bg-black px-5 py-2.5 font-medium text-white disabled:opacity-50 dark:bg-white dark:text-black"
-        >
-          {loading ? 'Zakładanie konta…' : 'Zarejestruj się'}
-        </button>
-      </form>
-      <p className="mt-4 text-sm text-black/60 dark:text-white/60">
-        Masz już konto?{' '}
-        <Link href="/logowanie" className="underline">
-          Zaloguj się
-        </Link>
-        .
-      </p>
+            {errors.form && <p className="text-sm font-semibold text-red-600">{errors.form}</p>}
+
+            <button type="submit" disabled={loading} className="btn btn-brand btn-lg w-full">
+              {loading ? 'Zakładanie konta…' : 'Zarejestruj się'}
+            </button>
+          </form>
+
+          <p className="mt-5 text-center text-sm text-muted">
+            Masz już konto?{' '}
+            <Link href="/logowanie" className="font-semibold text-brand underline">
+              Zaloguj się
+            </Link>
+          </p>
+        </div>
+      </div>
     </div>
   );
 }

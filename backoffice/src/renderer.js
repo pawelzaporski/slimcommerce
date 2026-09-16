@@ -35,6 +35,11 @@ const state = {
     cartsPage: 1,
     cartsLastPage: 1,
     editingCartId: null,
+    // Zdjęcia edytowanego produktu: assety (obiekty z API) - image1/image2 to
+    // dwa główne sloty, gallery to pozostałe w kolejności wyświetlania.
+    productImages: { image1: null, image2: null, gallery: [] },
+    editingSalesChannelId: null,
+    salesChannels: null,
 };
 
 const requestLog = [];
@@ -83,6 +88,42 @@ const fieldEan = document.getElementById('field-ean');
 const fieldEanWrap = document.getElementById('field-ean-wrap');
 const fieldEanHint = document.getElementById('field-ean-hint');
 const fieldActive = document.getElementById('field-active');
+
+// Zdjęcia produktu
+const imageSlotEls = {
+    image1: {
+        preview: document.getElementById('image1-preview'),
+        pickBtn: document.getElementById('image1-pick-btn'),
+        clearBtn: document.getElementById('image1-clear-btn'),
+        meta: document.getElementById('image1-meta'),
+        fileInput: document.getElementById('image1-file'),
+    },
+    image2: {
+        preview: document.getElementById('image2-preview'),
+        pickBtn: document.getElementById('image2-pick-btn'),
+        clearBtn: document.getElementById('image2-clear-btn'),
+        meta: document.getElementById('image2-meta'),
+        fileInput: document.getElementById('image2-file'),
+    },
+};
+const galleryPickBtn = document.getElementById('gallery-pick-btn');
+const galleryFilesInput = document.getElementById('gallery-files');
+const galleryList = document.getElementById('gallery-list');
+const imagesError = document.getElementById('images-error');
+
+// Miejsca sprzedaży
+const addSalesChannelBtn = document.getElementById('add-sales-channel-btn');
+const salesChannelsError = document.getElementById('sales-channels-error');
+const salesChannelsBody = document.getElementById('sales-channels-body');
+const salesChannelModal = document.getElementById('sales-channel-modal');
+const salesChannelForm = document.getElementById('sales-channel-form');
+const salesChannelModalTitle = document.getElementById('sales-channel-modal-title');
+const salesChannelName = document.getElementById('sales-channel-name');
+const salesChannelDomain = document.getElementById('sales-channel-domain');
+const salesChannelExternalId = document.getElementById('sales-channel-external-id');
+const salesChannelActive = document.getElementById('sales-channel-active');
+const salesChannelFormError = document.getElementById('sales-channel-form-error');
+const salesChannelCancelBtn = document.getElementById('sales-channel-cancel-btn');
 
 const requestLogEl = document.getElementById('request-log');
 const requestLogToggle = document.getElementById('request-log-toggle');
@@ -413,7 +454,9 @@ async function apiFetch(path, options = {}) {
             headers.Authorization = `Bearer ${token}`;
         }
 
-        if (options.body !== undefined) {
+        // FormData (upload plików) - przeglądarka sama ustawia multipart/form-data
+        // z boundary; ręczny Content-Type by to zepsuł.
+        if (options.body !== undefined && !(options.body instanceof FormData)) {
             headers['Content-Type'] = 'application/json';
         }
 
@@ -565,6 +608,10 @@ function switchPage(pageId, activeNavId = pageId) {
     if (pageId === 'payment-methods-page') {
         loadPaymentMethods();
     }
+
+    if (pageId === 'sales-channels-page') {
+        loadSalesChannels();
+    }
 }
 
 for (const btn of tabButtons) {
@@ -624,7 +671,7 @@ function enterApp() {
 
 async function loadProducts() {
     listError.hidden = true;
-    productsBody.innerHTML = '<tr><td colspan="7" class="muted">Ładowanie...</td></tr>';
+    productsBody.innerHTML = '<tr><td colspan="8" class="muted">Ładowanie...</td></tr>';
 
     try {
         const payload = await apiFetch(`/api/admin/products?page=${state.page}&per_page=${state.perPage}`);
@@ -641,7 +688,7 @@ async function loadProducts() {
 
 function renderProducts(products) {
     if (products.length === 0) {
-        productsBody.innerHTML = '<tr><td colspan="7" class="muted">Brak produktów.</td></tr>';
+        productsBody.innerHTML = '<tr><td colspan="8" class="muted">Brak produktów.</td></tr>';
         return;
     }
 
@@ -652,6 +699,7 @@ function renderProducts(products) {
 
         row.innerHTML = `
             <td>${product.id}</td>
+            <td class="thumb-cell"><span class="thumb-placeholder"></span></td>
             <td>${product.external_id ? escapeHtml(product.external_id) : '—'}</td>
             <td>${escapeHtml(product.sku)}</td>
             <td>${escapeHtml(product.name)}</td>
@@ -662,6 +710,10 @@ function renderProducts(products) {
                 <button type="button" class="danger" data-action="delete">Usuń</button>
             </td>
         `;
+
+        if (product.image1) {
+            row.querySelector('.thumb-cell').replaceChildren(createThumb(product.image1, 'table-thumb'));
+        }
 
         row.querySelector('[data-action="edit"]').addEventListener('click', () => openProductEditPage(product));
         row.querySelector('[data-action="delete"]').addEventListener('click', () => deleteProduct(product));
@@ -712,6 +764,7 @@ async function openProductCreatePage() {
     fieldEanWrap.hidden = false;
     fieldEanHint.hidden = false;
     productFormError.hidden = true;
+    setProductImages({ image1: null, image2: null, gallery: [] });
     productVariantsSection.hidden = true;
     productVariantsHint.hidden = false;
     switchPage('product-form-page', 'products-page');
@@ -733,6 +786,11 @@ async function openProductEditPage(product) {
     fieldEanHint.hidden = true;
     fieldActive.checked = Boolean(product.is_active);
     productFormError.hidden = true;
+    setProductImages({
+        image1: product.image1 || null,
+        image2: product.image2 || null,
+        gallery: [...(product.gallery || [])],
+    });
     productVariantsHint.hidden = true;
     productVariantsSection.hidden = false;
     switchPage('product-form-page', 'products-page');
@@ -769,6 +827,9 @@ productForm.addEventListener('submit', async (event) => {
         base_price: Number(fieldPrice.value),
         is_active: fieldActive.checked,
         category_ids: collectSelectedCategoryIds(),
+        image1_asset_id: state.productImages.image1 ? state.productImages.image1.id : null,
+        image2_asset_id: state.productImages.image2 ? state.productImages.image2.id : null,
+        gallery_asset_ids: state.productImages.gallery.map((asset) => asset.id),
     };
 
     if (!isEditing) {
@@ -809,6 +870,207 @@ async function deleteProduct(product) {
         listError.hidden = false;
     }
 }
+
+// --- Zdjęcia produktu (assets) ---
+
+function createThumb(asset, className) {
+    const img = document.createElement('img');
+    img.className = className;
+    img.src = asset.url;
+    img.alt = asset.alt || asset.filename || '';
+    img.loading = 'lazy';
+    return img;
+}
+
+function formatFileSize(bytes) {
+    if (!Number.isFinite(bytes)) return '';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function assetMeta(asset) {
+    const parts = [asset.filename];
+    if (asset.width && asset.height) parts.push(`${asset.width}×${asset.height}`);
+    if (asset.size) parts.push(formatFileSize(asset.size));
+    return parts.filter(Boolean).join(' · ');
+}
+
+function setProductImages(images) {
+    state.productImages = images;
+    imagesError.hidden = true;
+    renderProductImages();
+}
+
+function renderProductImages() {
+    for (const slot of ['image1', 'image2']) {
+        const els = imageSlotEls[slot];
+        const asset = state.productImages[slot];
+
+        if (asset) {
+            els.preview.replaceChildren(createThumb(asset, ''));
+            els.meta.textContent = assetMeta(asset);
+            els.clearBtn.hidden = false;
+            els.pickBtn.textContent = 'Zmień plik';
+        } else {
+            els.preview.innerHTML = '<span class="muted">Brak</span>';
+            els.meta.textContent = '';
+            els.clearBtn.hidden = true;
+            els.pickBtn.textContent = 'Wybierz plik';
+        }
+    }
+
+    const gallery = state.productImages.gallery;
+
+    if (gallery.length === 0) {
+        galleryList.innerHTML = '<p class="muted">Brak zdjęć w galerii.</p>';
+        return;
+    }
+
+    galleryList.innerHTML = '';
+
+    gallery.forEach((asset, index) => {
+        const item = document.createElement('div');
+        item.className = 'gallery-item';
+        item.appendChild(createThumb(asset, ''));
+
+        const name = document.createElement('div');
+        name.className = 'gallery-item-name';
+        name.textContent = assetMeta(asset);
+        name.title = assetMeta(asset);
+        item.appendChild(name);
+
+        const actions = document.createElement('div');
+        actions.className = 'gallery-item-actions';
+        actions.innerHTML = `
+            <button type="button" class="secondary" data-action="up" title="Przesuń w lewo" ${index === 0 ? 'disabled' : ''}>&larr;</button>
+            <button type="button" class="secondary" data-action="down" title="Przesuń w prawo" ${index === gallery.length - 1 ? 'disabled' : ''}>&rarr;</button>
+            <button type="button" class="danger" data-action="remove" title="Usuń zdjęcie">&times;</button>
+        `;
+        actions.querySelector('[data-action="up"]').addEventListener('click', () => moveGalleryImage(index, -1));
+        actions.querySelector('[data-action="down"]').addEventListener('click', () => moveGalleryImage(index, 1));
+        actions.querySelector('[data-action="remove"]').addEventListener('click', () => removeProductImage('gallery', asset));
+        item.appendChild(actions);
+
+        galleryList.appendChild(item);
+    });
+}
+
+function moveGalleryImage(index, delta) {
+    const gallery = state.productImages.gallery;
+    const target = index + delta;
+    if (target < 0 || target >= gallery.length) return;
+    [gallery[index], gallery[target]] = [gallery[target], gallery[index]];
+    renderProductImages();
+}
+
+function setImagesBusy(busy) {
+    for (const slot of ['image1', 'image2']) {
+        imageSlotEls[slot].pickBtn.disabled = busy;
+        imageSlotEls[slot].clearBtn.disabled = busy;
+    }
+    galleryPickBtn.disabled = busy;
+}
+
+function showImagesError(message) {
+    imagesError.textContent = message;
+    imagesError.hidden = false;
+}
+
+async function uploadAsset(file) {
+    const formData = new FormData();
+    formData.append('file', file, file.name);
+
+    return apiFetch('/api/admin/assets', { method: 'POST', body: formData });
+}
+
+async function handleSlotFile(slot, file) {
+    if (!file) return;
+    imagesError.hidden = true;
+    setImagesBusy(true);
+    imageSlotEls[slot].meta.textContent = `Wgrywanie ${file.name}...`;
+
+    try {
+        const asset = await uploadAsset(file);
+        state.productImages[slot] = asset;
+        renderProductImages();
+    } catch (error) {
+        if (error.status === 401) return;
+        renderProductImages();
+        showImagesError(error.message);
+    } finally {
+        setImagesBusy(false);
+    }
+}
+
+async function handleGalleryFiles(files) {
+    if (!files || files.length === 0) return;
+    imagesError.hidden = true;
+    setImagesBusy(true);
+
+    const failures = [];
+
+    for (const file of files) {
+        try {
+            const asset = await uploadAsset(file);
+            state.productImages.gallery.push(asset);
+            renderProductImages();
+        } catch (error) {
+            if (error.status === 401) return;
+            failures.push(`${file.name}: ${error.message}`);
+        }
+    }
+
+    setImagesBusy(false);
+
+    if (failures.length > 0) {
+        showImagesError(`Nie udało się wgrać: ${failures.join('; ')}`);
+    }
+}
+
+// Usunięcie zdjęcia kasuje asset w API (plik + rekord) - panel nie ma osobnej
+// biblioteki plików, więc odpięty asset i tak byłby nieosiągalny.
+async function removeProductImage(slot, asset) {
+    const confirmed = await confirmDialog(`Usunąć zdjęcie "${asset.filename}"? Plik zostanie skasowany z serwera.`, { title: 'Usuń zdjęcie' });
+    if (!confirmed) return;
+
+    setImagesBusy(true);
+
+    try {
+        await apiFetch(`/api/admin/assets/${asset.id}`, { method: 'DELETE' });
+
+        if (slot === 'gallery') {
+            state.productImages.gallery = state.productImages.gallery.filter((item) => item.id !== asset.id);
+        } else {
+            state.productImages[slot] = null;
+        }
+
+        renderProductImages();
+    } catch (error) {
+        if (error.status === 401) return;
+        showImagesError(error.message);
+    } finally {
+        setImagesBusy(false);
+    }
+}
+
+for (const slot of ['image1', 'image2']) {
+    const els = imageSlotEls[slot];
+    els.pickBtn.addEventListener('click', () => els.fileInput.click());
+    els.fileInput.addEventListener('change', () => {
+        handleSlotFile(slot, els.fileInput.files[0]);
+        els.fileInput.value = '';
+    });
+    els.clearBtn.addEventListener('click', () => {
+        if (state.productImages[slot]) removeProductImage(slot, state.productImages[slot]);
+    });
+}
+
+galleryPickBtn.addEventListener('click', () => galleryFilesInput.click());
+galleryFilesInput.addEventListener('change', () => {
+    handleGalleryFiles(Array.from(galleryFilesInput.files));
+    galleryFilesInput.value = '';
+});
 
 // --- Cechy (attributes) ---
 
@@ -2711,6 +2973,121 @@ async function deletePaymentMethod(paymentMethodItem) {
         if (error.status === 401) return;
         paymentMethodsError.textContent = error.message;
         paymentMethodsError.hidden = false;
+    }
+}
+
+// --- Miejsca sprzedaży (sales channels) ---
+
+async function loadSalesChannels() {
+    salesChannelsError.hidden = true;
+    salesChannelsBody.innerHTML = '<tr><td colspan="5" class="muted">Ładowanie...</td></tr>';
+
+    try {
+        state.salesChannels = await apiFetch('/api/admin/sales-channels');
+        renderSalesChannels();
+    } catch (error) {
+        if (error.status === 401) return;
+        state.salesChannels = [];
+        salesChannelsBody.innerHTML = '';
+        salesChannelsError.textContent = error.message;
+        salesChannelsError.hidden = false;
+    }
+}
+
+function renderSalesChannels() {
+    const channels = state.salesChannels || [];
+
+    if (channels.length === 0) {
+        salesChannelsBody.innerHTML = '<tr><td colspan="5" class="muted">Brak miejsc sprzedaży. Dodaj domenę storefrontu, żeby API dopuściło ją w CORS.</td></tr>';
+        return;
+    }
+
+    salesChannelsBody.innerHTML = '';
+
+    for (const channel of channels) {
+        const row = document.createElement('tr');
+
+        row.innerHTML = `
+            <td>${escapeHtml(channel.name)}</td>
+            <td><span class="domain-code">${escapeHtml(channel.domain)}</span></td>
+            <td>${channel.external_id ? escapeHtml(channel.external_id) : '—'}</td>
+            <td><span class="badge ${channel.is_active ? 'active' : 'inactive'}">${channel.is_active ? 'Tak' : 'Nie'}</span></td>
+            <td class="row-actions">
+                <button type="button" class="secondary" data-action="edit">Edytuj</button>
+                <button type="button" class="danger" data-action="delete">Usuń</button>
+            </td>
+        `;
+
+        row.querySelector('[data-action="edit"]').addEventListener('click', () => openSalesChannelModal(channel));
+        row.querySelector('[data-action="delete"]').addEventListener('click', () => deleteSalesChannel(channel));
+
+        salesChannelsBody.appendChild(row);
+    }
+}
+
+function openSalesChannelModal(channel = null) {
+    state.editingSalesChannelId = channel ? channel.id : null;
+    salesChannelModalTitle.textContent = channel ? 'Edytuj miejsce sprzedaży' : 'Dodaj miejsce sprzedaży';
+    salesChannelName.value = channel ? channel.name : '';
+    salesChannelDomain.value = channel ? channel.domain : '';
+    salesChannelExternalId.value = channel?.external_id ?? '';
+    salesChannelActive.checked = channel ? Boolean(channel.is_active) : true;
+    salesChannelFormError.hidden = true;
+    salesChannelModal.hidden = false;
+    salesChannelName.focus();
+}
+
+function closeSalesChannelModal() {
+    salesChannelModal.hidden = true;
+}
+
+addSalesChannelBtn.addEventListener('click', () => openSalesChannelModal());
+salesChannelCancelBtn.addEventListener('click', closeSalesChannelModal);
+salesChannelModal.addEventListener('click', (event) => {
+    if (event.target === salesChannelModal) closeSalesChannelModal();
+});
+
+salesChannelForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    salesChannelFormError.hidden = true;
+
+    const body = {
+        name: salesChannelName.value.trim(),
+        domain: salesChannelDomain.value.trim(),
+        external_id: salesChannelExternalId.value.trim() || null,
+        is_active: salesChannelActive.checked,
+    };
+
+    const isEditing = state.editingSalesChannelId !== null;
+    const path = isEditing ? `/api/admin/sales-channels/${state.editingSalesChannelId}` : '/api/admin/sales-channels';
+    const method = isEditing ? 'PUT' : 'POST';
+
+    const submitBtn = document.getElementById('sales-channel-save-btn');
+    submitBtn.disabled = true;
+
+    try {
+        await apiFetch(path, { method, body: JSON.stringify(body) });
+        closeSalesChannelModal();
+        loadSalesChannels();
+    } catch (error) {
+        salesChannelFormError.textContent = error.message;
+        salesChannelFormError.hidden = false;
+    } finally {
+        submitBtn.disabled = false;
+    }
+});
+
+async function deleteSalesChannel(channel) {
+    const confirmed = await confirmDialog(`Usunąć miejsce sprzedaży "${channel.name}" (${channel.domain})? Storefront pod tą domeną straci dostęp CORS do API.`, { title: 'Usuń miejsce sprzedaży' });
+    if (!confirmed) return;
+
+    try {
+        await apiFetch(`/api/admin/sales-channels/${channel.id}`, { method: 'DELETE' });
+        loadSalesChannels();
+    } catch (error) {
+        if (error.status === 401) return;
+        salesChannelsError.textContent = error.message;
+        salesChannelsError.hidden = false;
     }
 }
 

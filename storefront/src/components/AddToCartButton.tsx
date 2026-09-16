@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { CheckIcon, MinusIcon, PlusIcon } from '@/components/icons';
 import { addCartItem } from '@/lib/api';
 import { ensureCartToken } from '@/lib/cart';
 import { notifyStorefrontUpdated } from '@/lib/events';
@@ -30,16 +31,22 @@ export default function AddToCartButton({ variants }: { variants: ProductVariant
   }
 
   if (variants.length === 0) {
-    return <p className="text-black/60 dark:text-white/60">Ten produkt nie ma jeszcze wariantu do sprzedaży.</p>;
+    return <p className="text-sm text-muted">Ten produkt nie ma jeszcze wariantu do sprzedaży.</p>;
   }
 
+  const stepperButton =
+    'inline-flex h-12 w-12 items-center justify-center text-ink transition hover:bg-smoke disabled:opacity-40';
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {variants.length > 1 && (
-        <label className="block text-sm">
-          Wariant
+        <div>
+          <label htmlFor="variant" className="field-label">
+            Wariant
+          </label>
           <select
-            className="mt-1 block w-full rounded border border-black/15 bg-transparent px-3 py-2 dark:border-white/20"
+            id="variant"
+            className="field"
             value={variantId}
             onChange={(event) => setVariantId(Number(event.target.value))}
           >
@@ -50,31 +57,59 @@ export default function AddToCartButton({ variants }: { variants: ProductVariant
               </option>
             ))}
           </select>
-        </label>
+        </div>
       )}
 
-      <label className="block text-sm">
-        Ilość
-        <input
-          type="number"
-          min={1}
-          className="mt-1 block w-24 rounded border border-black/15 bg-transparent px-3 py-2 dark:border-white/20"
-          value={quantity}
-          onChange={(event) => setQuantity(Math.max(1, Number(event.target.value)))}
-        />
-      </label>
+      <p className={`flex items-center gap-2 text-sm font-semibold ${outOfStock ? 'text-red-600' : 'text-green-700'}`}>
+        <span className={`inline-block h-2 w-2 rounded-full ${outOfStock ? 'bg-red-600' : 'bg-green-600'}`} />
+        {outOfStock ? 'Chwilowo niedostępny' : 'Dostępny — wysyłka w 24 h'}
+      </p>
 
-      <button
-        type="button"
-        onClick={handleAddToCart}
-        disabled={outOfStock || status === 'loading'}
-        className="rounded bg-black px-5 py-2.5 font-medium text-white disabled:opacity-50 dark:bg-white dark:text-black"
-      >
-        {outOfStock ? 'Brak w magazynie' : status === 'loading' ? 'Dodawanie…' : 'Dodaj do koszyka'}
-      </button>
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center rounded-full border border-black/15" role="group" aria-label="Ilość">
+          <button
+            type="button"
+            onClick={() => setQuantity((value) => Math.max(1, value - 1))}
+            disabled={quantity <= 1}
+            className={`${stepperButton} rounded-l-full`}
+            aria-label="Zmniejsz ilość"
+          >
+            <MinusIcon size={16} />
+          </button>
+          <input
+            type="number"
+            min={1}
+            value={quantity}
+            onChange={(event) => setQuantity(Math.max(1, Number(event.target.value) || 1))}
+            className="w-12 border-x border-black/15 bg-transparent py-3 text-center text-sm font-semibold outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+            aria-label="Ilość"
+          />
+          <button
+            type="button"
+            onClick={() => setQuantity((value) => value + 1)}
+            className={`${stepperButton} rounded-r-full`}
+            aria-label="Zwiększ ilość"
+          >
+            <PlusIcon size={16} />
+          </button>
+        </div>
 
-      {status === 'done' && <p className="text-sm text-green-600 dark:text-green-400">Dodano do koszyka.</p>}
-      {status === 'error' && <p className="text-sm text-red-600 dark:text-red-400">Nie udało się dodać do koszyka.</p>}
+        <button
+          type="button"
+          onClick={handleAddToCart}
+          disabled={outOfStock || status === 'loading'}
+          className="btn btn-brand btn-lg flex-1 sm:flex-none sm:min-w-56"
+        >
+          {outOfStock ? 'Brak w magazynie' : status === 'loading' ? 'Dodawanie…' : 'Dodaj do koszyka'}
+        </button>
+      </div>
+
+      {status === 'done' && (
+        <p className="flex items-center gap-2 text-sm font-semibold text-green-700">
+          <CheckIcon size={18} /> Dodano do koszyka.
+        </p>
+      )}
+      {status === 'error' && <p className="text-sm font-semibold text-red-600">Nie udało się dodać do koszyka.</p>}
     </div>
   );
 }

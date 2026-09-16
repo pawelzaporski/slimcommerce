@@ -30,47 +30,62 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="mx-auto max-w-sm">
-      <h1 className="mb-6 text-2xl font-semibold">Zaloguj się</h1>
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <label className="block text-sm">
-          E-mail
-          <input
-            type="email"
-            required
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            className="mt-1 block w-full rounded border border-black/15 bg-transparent px-3 py-2 dark:border-white/20"
-          />
-        </label>
-        <label className="block text-sm">
-          Hasło
-          <input
-            type="password"
-            required
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            className="mt-1 block w-full rounded border border-black/15 bg-transparent px-3 py-2 dark:border-white/20"
-          />
-        </label>
+    <div className="container-x py-10">
+      <div className="mx-auto grid max-w-4xl gap-8 md:grid-cols-2">
+        <div className="card p-8">
+          <h1 className="display text-3xl">Zaloguj się</h1>
+          <p className="mt-2 text-sm text-muted">Masz już konto? Wpisz swoje dane.</p>
 
-        {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+          <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+            <div>
+              <label htmlFor="email" className="field-label">
+                E-mail
+              </label>
+              <input
+                id="email"
+                type="email"
+                required
+                autoComplete="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                className="field"
+              />
+            </div>
+            <div>
+              <label htmlFor="password" className="field-label">
+                Hasło
+              </label>
+              <input
+                id="password"
+                type="password"
+                required
+                autoComplete="current-password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                className="field"
+              />
+            </div>
 
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full rounded bg-black px-5 py-2.5 font-medium text-white disabled:opacity-50 dark:bg-white dark:text-black"
-        >
-          {loading ? 'Logowanie…' : 'Zaloguj się'}
-        </button>
-      </form>
-      <p className="mt-4 text-sm text-black/60 dark:text-white/60">
-        Nie masz konta?{' '}
-        <Link href="/rejestracja" className="underline">
-          Zarejestruj się
-        </Link>
-        .
-      </p>
+            {error && <p className="text-sm font-semibold text-red-600">{error}</p>}
+
+            <button type="submit" disabled={loading} className="btn btn-brand btn-lg w-full">
+              {loading ? 'Logowanie…' : 'Zaloguj się'}
+            </button>
+          </form>
+        </div>
+
+        <div className="flex flex-col justify-center rounded-3xl bg-rose-light p-8">
+          <h2 className="display text-3xl">Nie masz konta?</h2>
+          <ul className="mt-4 space-y-2 text-sm text-ink/80">
+            <li>• szybsze składanie zamówień,</li>
+            <li>• zapamiętane dane do wysyłki,</li>
+            <li>• historia zakupów w jednym miejscu.</li>
+          </ul>
+          <Link href="/rejestracja" className="btn btn-black mt-6 self-start">
+            Załóż konto
+          </Link>
+        </div>
+      </div>
     </div>
   );
 }

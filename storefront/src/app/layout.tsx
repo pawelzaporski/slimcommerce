@@ -1,17 +1,23 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Oswald, Source_Sans_3 } from "next/font/google";
+import Footer from "@/components/Footer";
 import Header from "@/components/Header";
+import { getCategoriesSafe } from "@/lib/api";
 import { SITE_NAME, SITE_URL } from "@/lib/site";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
+// Krój treści (czytelny, humanistyczny bezszeryf) + kondensowany krój
+// nagłówków wersalikami - typografia typowa dla drogerii/beauty e-commerce.
+const bodyFont = Source_Sans_3({
+  variable: "--font-body",
+  subsets: ["latin", "latin-ext"],
+  weight: ["400", "600", "700"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+const displayFont = Oswald({
+  variable: "--font-display",
+  subsets: ["latin", "latin-ext"],
+  weight: ["500", "600", "700"],
 });
 
 export const metadata: Metadata = {
@@ -28,18 +34,15 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  const categories = await getCategoriesSafe();
+
   return (
-    <html
-      lang="pl"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
-      <body className="min-h-full flex flex-col">
-        <Header />
-        <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">{children}</main>
-        <footer className="border-t border-black/10 px-4 py-6 text-center text-sm text-black/50 dark:border-white/15 dark:text-white/50">
-          © {new Date().getFullYear()} {SITE_NAME}
-        </footer>
+    <html lang="pl" className={`${bodyFont.variable} ${displayFont.variable}`}>
+      <body className="flex min-h-dvh flex-col">
+        <Header categories={categories} />
+        <main className="flex-1">{children}</main>
+        <Footer categories={categories} />
       </body>
     </html>
   );

@@ -3,6 +3,7 @@ import type {
   AuthResponse,
   Cart,
   CartItem,
+  Category,
   CheckoutPayload,
   CheckoutResponse,
   Client,
@@ -57,10 +58,28 @@ async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): Promise
 
 // Produkty
 
-export function getProducts(revalidate = 60): Promise<Product[]> {
-  return apiFetch<Product[]>('/api/storefront/products', {
+export function getProducts(revalidate = 60, categorySlug?: string): Promise<Product[]> {
+  const query = categorySlug ? `?category=${encodeURIComponent(categorySlug)}` : '';
+  return apiFetch<Product[]>(`/api/storefront/products${query}`, {
     next: { revalidate },
   });
+}
+
+// Kategorie
+
+export function getCategories(revalidate = 300): Promise<Category[]> {
+  return apiFetch<Category[]>('/api/storefront/categories', {
+    next: { revalidate },
+  });
+}
+
+/** Kategorie z bezpiecznym fallbackiem - nawigacja nie może wywalić całego layoutu, gdy API leży. */
+export async function getCategoriesSafe(): Promise<Category[]> {
+  try {
+    return await getCategories();
+  } catch {
+    return [];
+  }
 }
 
 export function getProduct(id: number | string, revalidate = 60): Promise<ProductDetail> {

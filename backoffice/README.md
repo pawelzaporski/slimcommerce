@@ -28,6 +28,15 @@ dane logowania domyślnego superadmina:
   Przy każdym produkcie przycisk **„Warianty”** otwiera modal z listą jego wariantów
   (SKU, EAN, cena, stan magazynowy) i formularzem dodawania/edycji — łącznie z
   przypisywaniem wartości cech (po jednym rozwijanym polu na cechę, np. Rozmiar: XL).
+- **Zdjęcia produktu** (w formularzu produktu) — dwa główne sloty „Zdjęcie 1 / Zdjęcie 2” oraz galeria
+  „Pozostałe zdjęcia” (kolejność strzałkami). Wybrany plik od razu leci na `POST /api/admin/assets`
+  (multipart), a id assetów zapisują się razem z produktem (`image1_asset_id`, `image2_asset_id`,
+  `gallery_asset_ids`). „Usuń” kasuje asset w API (plik + rekord). Uwaga: plik wgrany, ale
+  niezapisany z produktem (np. porzucony formularz), zostaje w bazie jako osierocony asset —
+  do sprzątnięcia przez `GET/DELETE /api/admin/assets`. Lista produktów pokazuje miniaturę zdjęcia 1.
+- **Zakładka „Miejsca sprzedaży”** — fronty sklepu (storefront) pod własnymi domenami: nazwa,
+  domena (origin, np. `https://sklep.example.com`), aktywność. Domena aktywnego miejsca sprzedaży
+  jest automatycznie dopuszczana w CORS API — patrz sekcja CORS w [../backend/README.md](../backend/README.md).
 - **Zakładka „Cechy”** — lista cech (np. Rozmiar, Kolor), każda jako karta z
   wartościami w formie „chipów” do dodania/edycji/usunięcia. Dodawanie/edycja
   nazw odbywa się przez proste okienko (`prompt`), zgodnie z resztą lekkiego UI.

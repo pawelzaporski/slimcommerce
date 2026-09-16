@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controllers\Admin;
 
+use App\Models\Asset;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use OpenApi\Attributes as OA;
@@ -12,7 +13,7 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 
 final class ProductController
 {
-    private const array FILLABLE = ['external_id', 'sku', 'name', 'base_price', 'is_active'];
+    private const array FILLABLE = ['external_id', 'sku', 'name', 'base_price', 'is_active', 'image1_asset_id', 'image2_asset_id'];
 
     #[OA\Get(
         path: '/api/admin/products',
@@ -47,7 +48,7 @@ final class ProductController
         $total = Product::query()->count();
 
         $products = Product::query()
-            ->with('categories')
+            ->with(['categories', ...Product::IMAGE_RELATIONS])
             ->orderBy('id')
             ->forPage($page, $perPage)
             ->get();
@@ -77,7 +78,7 @@ final class ProductController
     )]
     public function show(Request $request, Response $response, array $args): Response
     {
-        $product = Product::query()->with('categories')->find((int) $args['id']);
+        $product = Product::query()->with(['categories', ...Product::IMAGE_RELATIONS])->find((int) $args['id']);
 
         if (! $product) {
             return $this->json($response, ['error' => 'Produkt nie istnieje.'], 404);
@@ -104,6 +105,9 @@ final class ProductController
                     new OA\Property(property: 'ean', type: 'string', nullable: true, description: 'EAN domyślnego wariantu tworzonego razem z produktem'),
                     new OA\Property(property: 'is_active', type: 'boolean', default: true),
                     new OA\Property(property: 'category_ids', type: 'array', items: new OA\Items(type: 'integer')),
+                    new OA\Property(property: 'image1_asset_id', type: 'integer', nullable: true, description: 'Pierwsze (główne) zdjęcie - id assetu z POST /api/admin/assets'),
+                    new OA\Property(property: 'image2_asset_id', type: 'integer', nullable: true, description: 'Drugie zdjęcie - id assetu'),
+                    new OA\Property(property: 'gallery_asset_ids', type: 'array', items: new OA\Items(type: 'integer'), description: 'Pozostałe zdjęcia (galeria) w zadanej kolejności - zastępuje całą galerię'),
                 ]
             )
         ),
@@ -138,6 +142,8 @@ final class ProductController
                 'name' => $data['name'],
                 'base_price' => $data['base_price'],
                 'is_active' => $data['is_active'] ?? true,
+                'image1_asset_id' => $data['image1_asset_id'] ?? null,
+                'image2_asset_id' => $data['image2_asset_id'] ?? null,
             ]);
 
             // Domyślny wariant - produkt bez wariantu nie ma gdzie trzymać stanu
@@ -150,11 +156,12 @@ final class ProductController
             ]);
 
             $product->categories()->sync($this->categoryIds($data));
+            $product->gallery()->sync($this->gallerySyncData($data));
 
             return $product;
         });
 
-        return $this->json($response, $product->load('categories')->toArray(), 201);
+        return $this->json($response, $product->load(['categories', ...Product::IMAGE_RELATIONS])->toArray(), 201);
     }
 
     #[OA\Put(
@@ -173,6 +180,9 @@ final class ProductController
                     new OA\Property(property: 'base_price', type: 'number', format: 'float'),
                     new OA\Property(property: 'is_active', type: 'boolean'),
                     new OA\Property(property: 'category_ids', type: 'array', items: new OA\Items(type: 'integer')),
+                    new OA\Property(property: 'image1_asset_id', type: 'integer', nullable: true, description: 'Pierwsze (główne) zdjęcie - id assetu z POST /api/admin/assets'),
+                    new OA\Property(property: 'image2_asset_id', type: 'integer', nullable: true, description: 'Drugie zdjęcie - id assetu'),
+                    new OA\Property(property: 'gallery_asset_ids', type: 'array', items: new OA\Items(type: 'integer'), description: 'Pozostałe zdjęcia (galeria) w zadanej kolejności - zastępuje całą galerię'),
                 ]
             )
         ),
@@ -214,7 +224,11 @@ final class ProductController
             $product->categories()->sync($this->categoryIds($data));
         }
 
-        return $this->json($response, $product->load('categories')->toArray());
+        if (array_key_exists('gallery_asset_ids', $data)) {
+            $product->gallery()->sync($this->gallerySyncData($data));
+        }
+
+        return $this->json($response, $product->load(['categories', ...Product::IMAGE_RELATIONS])->toArray());
     }
 
     #[OA\Delete(
@@ -269,7 +283,56 @@ final class ProductController
             }
         }
 
+        foreach (['image1_asset_id', 'image2_asset_id'] as $field) {
+            if (! array_key_exists($field, $data) || $data[$field] === null) {
+                continue;
+            }
+
+            if (! is_int($data[$field]) && ! ctype_digit((string) $data[$field])) {
+                $errors[$field] = "Pole {$field} musi być liczbą całkowitą (id assetu) albo null.";
+            } elseif (! Asset::query()->whereKey((int) $data[$field])->exists()) {
+                $errors[$field] = "Asset o id {$data[$field]} nie istnieje.";
+            }
+        }
+
+        if (array_key_exists('gallery_asset_ids', $data)) {
+            if (! is_array($data['gallery_asset_ids'])) {
+                $errors['gallery_asset_ids'] = 'Pole gallery_asset_ids musi być tablicą id assetów.';
+            } else {
+                $ids = array_values(array_unique(array_map('intval', $data['gallery_asset_ids'])));
+                $existing = $ids === [] ? [] : Asset::query()->whereKey($ids)->pluck('id')->all();
+                $missing = array_diff($ids, $existing);
+
+                if ($missing !== []) {
+                    $errors['gallery_asset_ids'] = 'Assety o id ' . implode(', ', $missing) . ' nie istnieją.';
+                }
+            }
+        }
+
         return $errors;
+    }
+
+    /**
+     * Dane do sync() galerii: [asset_id => ['position' => n]] w kolejności z żądania.
+     *
+     * @param array<string, mixed> $data
+     *
+     * @return array<int, array{position: int}>
+     */
+    private function gallerySyncData(array $data): array
+    {
+        if (! isset($data['gallery_asset_ids']) || ! is_array($data['gallery_asset_ids'])) {
+            return [];
+        }
+
+        $sync = [];
+        $position = 0;
+
+        foreach (array_unique(array_map('intval', $data['gallery_asset_ids'])) as $assetId) {
+            $sync[$assetId] = ['position' => $position++];
+        }
+
+        return $sync;
     }
 
     /**

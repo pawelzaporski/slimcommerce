@@ -67,6 +67,10 @@
                     <svg class="nav-icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3 3h1.5l1.2 9.6a1.5 1.5 0 0 0 1.49 1.4h6.62a1.5 1.5 0 0 0 1.49-1.28L16.5 6.5H5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="7.5" cy="17" r="1.1" stroke="currentColor" stroke-width="1.5"/><circle cx="13.5" cy="17" r="1.1" stroke="currentColor" stroke-width="1.5"/></svg>
                     <span>Koszyki</span>
                 </button>
+                <button type="button" class="sidebar-nav-item" data-page="sales-channels-page" data-title="Miejsca sprzedaży">
+                    <svg class="nav-icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="10" cy="10" r="7" stroke="currentColor" stroke-width="1.5"/><path d="M3 10h14M10 3c2.2 2.3 3.3 4.6 3.3 7S12.2 14.7 10 17c-2.2-2.3-3.3-4.6-3.3-7S7.8 5.3 10 3Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+                    <span>Miejsca sprzedaży</span>
+                </button>
             </div>
 
             <div class="sidebar-nav-group">
@@ -111,6 +115,7 @@
                 <button id="add-user-btn" class="page-action" data-page-action="users-page" hidden>+ Dodaj użytkownika</button>
                 <button id="add-shipping-btn" class="page-action" data-page-action="shipping-page" hidden>+ Dodaj metodę</button>
                 <button id="add-payment-method-btn" class="page-action" data-page-action="payment-methods-page" hidden>+ Dodaj metodę</button>
+                <button id="add-sales-channel-btn" class="page-action" data-page-action="sales-channels-page" hidden>+ Dodaj miejsce sprzedaży</button>
             </div>
         </header>
 
@@ -123,6 +128,7 @@
                     <thead>
                         <tr>
                             <th>ID</th>
+                            <th>Zdjęcie</th>
                             <th>External ID</th>
                             <th>SKU</th>
                             <th>Nazwa</th>
@@ -132,7 +138,7 @@
                         </tr>
                     </thead>
                     <tbody id="products-body">
-                        <tr><td colspan="7" class="muted">Ładowanie...</td></tr>
+                        <tr><td colspan="8" class="muted">Ładowanie...</td></tr>
                     </tbody>
                 </table>
 
@@ -198,6 +204,43 @@
                     <div id="field-categories" class="checkbox-group">
                         <p class="muted">Brak zdefiniowanych kategorii.</p>
                     </div>
+
+                    <label>Zdjęcia</label>
+                    <p class="muted">Zdjęcie 1 i 2 to główne zdjęcia produktu (np. przód / tył) - trzymane wprost na produkcie. Pozostałe trafiają do galerii. Pliki wgrywają się od razu po wybraniu; powiązanie z produktem zapisuje się razem z formularzem.</p>
+
+                    <div class="image-slots">
+                        <div class="image-slot">
+                            <span class="image-slot-label">Zdjęcie 1 (główne)</span>
+                            <div class="image-slot-preview" id="image1-preview"><span class="muted">Brak</span></div>
+                            <div class="image-slot-actions">
+                                <button type="button" id="image1-pick-btn" class="secondary">Wybierz plik</button>
+                                <button type="button" id="image1-clear-btn" class="danger" hidden>Usuń</button>
+                                <span class="image-slot-meta" id="image1-meta"></span>
+                            </div>
+                            <input type="file" id="image1-file" accept="image/jpeg,image/png,image/webp,image/gif,image/avif" hidden>
+                        </div>
+                        <div class="image-slot">
+                            <span class="image-slot-label">Zdjęcie 2</span>
+                            <div class="image-slot-preview" id="image2-preview"><span class="muted">Brak</span></div>
+                            <div class="image-slot-actions">
+                                <button type="button" id="image2-pick-btn" class="secondary">Wybierz plik</button>
+                                <button type="button" id="image2-clear-btn" class="danger" hidden>Usuń</button>
+                                <span class="image-slot-meta" id="image2-meta"></span>
+                            </div>
+                            <input type="file" id="image2-file" accept="image/jpeg,image/png,image/webp,image/gif,image/avif" hidden>
+                        </div>
+                    </div>
+
+                    <div class="gallery-block">
+                        <div class="gallery-header">
+                            <span class="image-slot-label">Pozostałe zdjęcia (galeria)</span>
+                            <button type="button" id="gallery-pick-btn" class="secondary">+ Dodaj zdjęcia</button>
+                            <input type="file" id="gallery-files" accept="image/jpeg,image/png,image/webp,image/gif,image/avif" multiple hidden>
+                        </div>
+                        <div id="gallery-list" class="gallery-list"><p class="muted">Brak zdjęć w galerii.</p></div>
+                    </div>
+
+                    <p id="images-error" class="error" hidden></p>
 
                     <label class="checkbox-label">
                         <input type="checkbox" id="field-active" checked>
@@ -797,6 +840,27 @@
                     </tbody>
                 </table>
             </section>
+
+            <!-- Strona: Miejsca sprzedaży -->
+            <section id="sales-channels-page" class="page" hidden>
+                <p id="sales-channels-error" class="error" hidden></p>
+                <p class="muted">Miejsce sprzedaży to front sklepu (storefront) pod własną domeną. Domena <strong>aktywnego</strong> miejsca sprzedaży jest automatycznie dopuszczana w CORS API (obok listy z <code>CORS_ALLOWED_ORIGIN</code> w <code>.env</code> backendu) - bez tego przeglądarka zablokuje wywołania <code>api/storefront/*</code> z tej domeny.</p>
+
+                <table class="products-table">
+                    <thead>
+                        <tr>
+                            <th>Nazwa</th>
+                            <th>Domena (origin)</th>
+                            <th>External ID</th>
+                            <th>Aktywne</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="sales-channels-body">
+                        <tr><td colspan="5" class="muted">Ładowanie...</td></tr>
+                    </tbody>
+                </table>
+            </section>
         </main>
     </div>
 </section>
@@ -888,6 +952,35 @@
         <div class="modal-actions">
             <button type="button" id="payment-method-cancel-btn" class="secondary">Anuluj</button>
             <button type="submit" id="payment-method-save-btn">Zapisz</button>
+        </div>
+    </form>
+</div>
+
+<!-- Modal dodawania/edycji miejsca sprzedaży -->
+<div id="sales-channel-modal" class="modal-overlay" hidden>
+    <form id="sales-channel-form" class="modal-card modal-card-narrow">
+        <h2 id="sales-channel-modal-title">Dodaj miejsce sprzedaży</h2>
+
+        <label for="sales-channel-name">Nazwa *</label>
+        <input type="text" id="sales-channel-name" placeholder="np. Sklep główny" required>
+
+        <label for="sales-channel-domain">Domena (origin) *</label>
+        <input type="text" id="sales-channel-domain" placeholder="np. https://sklep.example.com" required>
+        <p class="muted">Schemat + host (+ port), bez ścieżki - dokładnie jak w pasku adresu sklepu, np. <code>http://localhost:3000</code>. Bez schematu przyjmiemy <code>https://</code>.</p>
+
+        <label for="sales-channel-external-id">External ID</label>
+        <input type="text" id="sales-channel-external-id" placeholder="np. BL-SHOP-1">
+
+        <label class="checkbox-label">
+            <input type="checkbox" id="sales-channel-active" checked>
+            Aktywne (dopuszczone w CORS)
+        </label>
+
+        <p id="sales-channel-form-error" class="error" hidden></p>
+
+        <div class="modal-actions">
+            <button type="button" id="sales-channel-cancel-btn" class="secondary">Anuluj</button>
+            <button type="submit" id="sales-channel-save-btn">Zapisz</button>
         </div>
     </form>
 </div>

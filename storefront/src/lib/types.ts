@@ -1,3 +1,18 @@
+export interface Asset {
+  id: number;
+  external_id: string | null;
+  filename: string;
+  path: string;
+  url: string;
+  mime_type: string;
+  size: number;
+  width: number | null;
+  height: number | null;
+  alt: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Product {
   id: number;
   external_id: string | null;
@@ -5,14 +20,26 @@ export interface Product {
   name: string;
   base_price: string;
   is_active: boolean;
+  image1_asset_id: number | null;
+  image2_asset_id: number | null;
+  /** Pierwsze (główne) zdjęcie - kolumna na produkcie. */
+  image1: Asset | null;
+  /** Drugie zdjęcie - kolumna na produkcie. */
+  image2: Asset | null;
+  /** Kategorie produktu - w liście i szczegółach storefrontu. */
+  categories?: Category[];
   created_at: string;
   updated_at: string;
 }
 
 export interface Category {
   id: number;
+  external_id?: string | null;
   name: string;
-  slug?: string;
+  slug: string;
+  parent_id: number | null;
+  /** Liczba aktywnych produktów - tylko w GET /api/storefront/categories. */
+  products_count?: number;
 }
 
 export interface ProductVariant {
@@ -25,11 +52,15 @@ export interface ProductVariant {
   stock: number;
   created_at: string;
   updated_at: string;
+  /** Produkt nadrzędny (z image1/image2) - obecny tam, gdzie API dociąga tę relację, np. w pozycjach koszyka. */
+  product?: Product | null;
 }
 
 export interface ProductDetail extends Product {
   variants: ProductVariant[];
   categories: Category[];
+  /** Pozostałe zdjęcia (tabela product_assets), już posortowane po position. */
+  gallery: Asset[];
 }
 
 export interface CartItem {

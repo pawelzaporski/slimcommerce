@@ -2,8 +2,21 @@
 
 declare(strict_types=1);
 
+// Wbudowany serwer PHP (php -S ... public/index.php) kieruje KAŻDE żądanie do
+// tego pliku - także po pliki statyczne, np. zdjęcia z public/uploads/.
+// `return false` każe mu podać istniejący plik bezpośrednio z dysku.
+if (PHP_SAPI === 'cli-server') {
+    $requestedPath = urldecode((string) parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH));
+    $requestedFile = realpath(__DIR__ . $requestedPath);
+
+    if ($requestedFile !== false && $requestedFile !== __DIR__ && str_starts_with($requestedFile, __DIR__ . DIRECTORY_SEPARATOR) && is_file($requestedFile)) {
+        return false;
+    }
+}
+
 use App\Bootstrap\Database;
 use App\Controllers\Admin\AddressController;
+use App\Controllers\Admin\AssetController;
 use App\Controllers\Admin\AttributeController;
 use App\Controllers\Admin\AuthController;
 use App\Controllers\Admin\CartController;
@@ -15,11 +28,13 @@ use App\Controllers\Admin\PaymentController;
 use App\Controllers\Admin\PaymentMethodController;
 use App\Controllers\Admin\ProductController as AdminProductController;
 use App\Controllers\Admin\ProductVariantController;
+use App\Controllers\Admin\SalesChannelController;
 use App\Controllers\Admin\ShippingMethodController;
 use App\Controllers\Admin\UserController;
 use App\Controllers\DocsController;
 use App\Controllers\Storefront\AuthController as StorefrontAuthController;
 use App\Controllers\Storefront\CartController as StorefrontCartController;
+use App\Controllers\Storefront\CategoryController as StorefrontCategoryController;
 use App\Controllers\Storefront\CheckoutController as StorefrontCheckoutController;
 use App\Controllers\Storefront\PaymentMethodController as StorefrontPaymentMethodController;
 use App\Controllers\Storefront\ProductController as StorefrontProductController;
@@ -28,6 +43,8 @@ use App\Database\Migrator;
 use App\Database\Seeder;
 use App\Middleware\AdminAuthMiddleware;
 use App\Middleware\StorefrontAuthMiddleware;
+use App\Models\Asset;
+use App\Models\SalesChannel;
 use App\Support\Jwt;
 use Dotenv\Dotenv;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -63,6 +80,15 @@ if (! str_starts_with($databasePath, '/') && ! preg_match('/^[A-Za-z]:[\\\\\/]/'
 Migrator::run();
 Seeder::run();
 
+// Publiczny adres API - baza dla `url` assetów (zdjęć w public/uploads/).
+// APP_URL w .env, a gdy go nie ma - schemat + Host z bieżącego żądania (dev).
+$appUrl = rtrim((string) ($_ENV['APP_URL'] ?? ''), '/');
+if ($appUrl === '') {
+    $scheme = (! empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    $appUrl = $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost:8080');
+}
+Asset::setBaseUrl($appUrl);
+
 // 4. Konfiguracja aplikacji Slim 4
 $app = AppFactory::create();
 $app->addBodyParsingMiddleware();
@@ -75,11 +101,15 @@ $app->addErrorMiddleware($appDebug, true, true);
 // warstwa), dzięki czemu przechwytuje żądania OPTIONS (preflight) zanim
 // trafią do routingu.
 //
-// CORS_ALLOWED_ORIGIN to `*` (domyślnie, dev) albo lista originów po przecinku
-// (produkcyjnie, np. `https://sklep.example.com,https://admin.example.com`) -
-// nagłówek Access-Control-Allow-Origin może nieść tylko jedną wartość, więc przy
-// liście odbijamy Origin żądania tylko wtedy, gdy jest na liście.
-$corsAllowedOrigin = $_ENV['CORS_ALLOWED_ORIGIN'] ?? '*';
+// CORS_ALLOWED_ORIGIN to `*` (domyślnie, dev - wszystko dozwolone) albo lista
+// originów po przecinku (produkcyjnie, np. `https://admin.example.com`; może
+// też być pusta). Do tej listy ZAWSZE dochodzą domeny aktywnych miejsc
+// sprzedaży (tabela sales_channels, zarządzana z panelu) - dzięki temu nowy
+// storefront pod nową domeną dodaje się w panelu, bez ruszania .env.
+// Nagłówek Access-Control-Allow-Origin może nieść tylko jedną wartość, więc
+// odbijamy Origin żądania tylko wtedy, gdy jest na liście - w przeciwnym razie
+// nagłówka nie ma wcale (przeglądarka zablokuje odpowiedź).
+$corsAllowedOrigin = trim((string) ($_ENV['CORS_ALLOWED_ORIGIN'] ?? '*'));
 $app->add(function (Request $request, $handler) use ($corsAllowedOrigin): Response {
     if ($request->getMethod() === 'OPTIONS') {
         $response = new \Slim\Psr7\Response();
@@ -87,16 +117,21 @@ $app->add(function (Request $request, $handler) use ($corsAllowedOrigin): Respon
         $response = $handler->handle($request);
     }
 
-    $allowOrigin = $corsAllowedOrigin;
-
-    if ($corsAllowedOrigin !== '*' && str_contains($corsAllowedOrigin, ',')) {
-        $allowedOrigins = array_map('trim', explode(',', $corsAllowedOrigin));
+    if ($corsAllowedOrigin === '*') {
+        $allowOrigin = '*';
+    } else {
+        $allowedOrigins = array_values(array_filter(array_map('trim', explode(',', $corsAllowedOrigin))));
+        $allowedOrigins = array_values(array_unique([...$allowedOrigins, ...SalesChannel::activeOrigins()]));
         $requestOrigin = $request->getHeaderLine('Origin');
-        $allowOrigin = in_array($requestOrigin, $allowedOrigins, true) ? $requestOrigin : $allowedOrigins[0];
+        $allowOrigin = in_array($requestOrigin, $allowedOrigins, true) ? $requestOrigin : '';
+        $response = $response->withAddedHeader('Vary', 'Origin');
+    }
+
+    if ($allowOrigin !== '') {
+        $response = $response->withHeader('Access-Control-Allow-Origin', $allowOrigin);
     }
 
     return $response
-        ->withHeader('Access-Control-Allow-Origin', $allowOrigin)
         ->withHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
         ->withHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
 });
@@ -120,7 +155,10 @@ $paymentController = new PaymentController();
 $userController = new UserController();
 $cartController = new CartController();
 $cartItemController = new CartItemController();
+$assetController = new AssetController(__DIR__);
+$salesChannelController = new SalesChannelController();
 $storefrontProductController = new StorefrontProductController();
+$storefrontCategoryController = new StorefrontCategoryController();
 $storefrontCartController = new StorefrontCartController();
 $storefrontAuthController = new StorefrontAuthController($jwt);
 $storefrontCheckoutController = new StorefrontCheckoutController($jwt);
@@ -164,7 +202,12 @@ $app->get('/', function (Request $request, Response $response): Response {
             'GET|PUT|DELETE /api/admin/carts/{id} (Bearer JWT)',
             'POST /api/admin/carts/{cartId}/items (Bearer JWT)',
             'PUT|DELETE /api/admin/cart-items/{id} (Bearer JWT)',
-            'GET /api/storefront/products',
+            'GET|POST /api/admin/assets (Bearer JWT, POST = multipart upload)',
+            'GET|PUT|DELETE /api/admin/assets/{id} (Bearer JWT)',
+            'GET|POST /api/admin/sales-channels (Bearer JWT)',
+            'PUT|DELETE /api/admin/sales-channels/{id} (Bearer JWT)',
+            'GET /api/storefront/products (?category=slug)',
+            'GET /api/storefront/categories',
             'GET /api/storefront/products/{id}',
             'POST /api/storefront/register',
             'POST /api/storefront/login',
@@ -203,6 +246,8 @@ $app->group('/api/admin', function (RouteCollectorProxy $group) use (
     $userController,
     $cartController,
     $cartItemController,
+    $assetController,
+    $salesChannelController,
     $jwt,
 ): void {
     $group->post('/login', [$authController, 'login']);
@@ -221,6 +266,8 @@ $app->group('/api/admin', function (RouteCollectorProxy $group) use (
         $userController,
         $cartController,
         $cartItemController,
+        $assetController,
+        $salesChannelController,
     ): void {
         $group->get('/products', [$adminProductController, 'list']);
         $group->get('/products/{id:[0-9]+}', [$adminProductController, 'show']);
@@ -286,12 +333,24 @@ $app->group('/api/admin', function (RouteCollectorProxy $group) use (
         $group->post('/carts/{cartId:[0-9]+}/items', [$cartItemController, 'create']);
         $group->put('/cart-items/{id:[0-9]+}', [$cartItemController, 'update']);
         $group->delete('/cart-items/{id:[0-9]+}', [$cartItemController, 'delete']);
+
+        $group->get('/assets', [$assetController, 'list']);
+        $group->get('/assets/{id:[0-9]+}', [$assetController, 'show']);
+        $group->post('/assets', [$assetController, 'upload']);
+        $group->put('/assets/{id:[0-9]+}', [$assetController, 'update']);
+        $group->delete('/assets/{id:[0-9]+}', [$assetController, 'delete']);
+
+        $group->get('/sales-channels', [$salesChannelController, 'list']);
+        $group->post('/sales-channels', [$salesChannelController, 'create']);
+        $group->put('/sales-channels/{id:[0-9]+}', [$salesChannelController, 'update']);
+        $group->delete('/sales-channels/{id:[0-9]+}', [$salesChannelController, 'delete']);
     })->add(new AdminAuthMiddleware($jwt));
 });
 
 // 7. Trasy sklepu (api/storefront) - publiczne, poza /me (wymaga tokenu klienta)
 $app->group('/api/storefront', function (RouteCollectorProxy $group) use (
     $storefrontProductController,
+    $storefrontCategoryController,
     $storefrontCartController,
     $storefrontAuthController,
     $storefrontCheckoutController,
@@ -301,6 +360,7 @@ $app->group('/api/storefront', function (RouteCollectorProxy $group) use (
 ): void {
     $group->get('/products', [$storefrontProductController, 'list']);
     $group->get('/products/{id:[0-9]+}', [$storefrontProductController, 'show']);
+    $group->get('/categories', [$storefrontCategoryController, 'list']);
 
     $group->post('/register', [$storefrontAuthController, 'register']);
     $group->post('/login', [$storefrontAuthController, 'login']);
