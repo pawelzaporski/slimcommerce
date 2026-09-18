@@ -9,9 +9,9 @@ import ProductCard from '@/components/ProductCard';
 import ProductGallery from '@/components/ProductGallery';
 import SectionHeading from '@/components/SectionHeading';
 import { ReturnIcon, ShieldIcon, TruckIcon } from '@/components/icons';
-import { ApiError, getProduct, getProducts } from '@/lib/api';
+import { ApiError, getProduct, getProducts, getStorefrontSettingsSafe } from '@/lib/api';
 import { imageAlt, productImages } from '@/lib/images';
-import { FREE_SHIPPING_FROM, formatPrice, isNewProduct, SITE_URL } from '@/lib/site';
+import { formatPrice, isNewProduct, SITE_URL } from '@/lib/site';
 import type { ProductDetail } from '@/lib/types';
 
 interface ProductPageProps {
@@ -68,6 +68,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
 
   // "Podobne produkty": najpierw z tych samych kategorii, a gdy ich za mało - dopełniamy innymi z oferty.
   const allProducts = await getProducts().catch(() => []);
+  const { free_shipping_from: freeShippingFrom } = await getStorefrontSettingsSafe();
   const categoryIds = new Set(product.categories.map((category) => category.id));
   const others = allProducts.filter((item) => item.id !== product.id);
   const related = others.filter((item) => (item.categories ?? []).some((category) => categoryIds.has(category.id)));
@@ -140,7 +141,13 @@ export default async function ProductPage({ params }: ProductPageProps) {
               <li className="flex items-center gap-3">
                 <TruckIcon size={20} className="shrink-0 text-brand" />
                 <span>
-                  <strong>Darmowa dostawa</strong> od {FREE_SHIPPING_FROM} zł, wysyłka w 24 h
+                  {freeShippingFrom !== null ? (
+                    <>
+                      <strong>Darmowa dostawa</strong> od {formatPrice(freeShippingFrom)}
+                    </>
+                  ) : (
+                    <strong>Dostawa pod wskazany adres</strong>
+                  )}
                 </span>
               </li>
               <li className="flex items-center gap-3">

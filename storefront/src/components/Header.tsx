@@ -21,7 +21,7 @@ import { getCartToken } from '@/lib/cart';
 import { buildCategoryTree, type CategoryNode } from '@/lib/categories';
 import { onStorefrontUpdated } from '@/lib/events';
 import { getFavoriteIds, onFavoritesChanged } from '@/lib/favorites';
-import { FREE_SHIPPING_FROM, SITE_NAME, SITE_TAGLINE } from '@/lib/site';
+import { formatPrice, SITE_NAME, SITE_TAGLINE } from '@/lib/site';
 import type { Category } from '@/lib/types';
 
 const INFO_LINKS = [
@@ -59,7 +59,14 @@ function MobileCategoryList({ nodes, depth = 0 }: { nodes: CategoryNode[]; depth
   );
 }
 
-export default function Header({ categories }: { categories: Category[] }) {
+export default function Header({
+  categories,
+  freeShippingFrom,
+}: {
+  categories: Category[];
+  /** Próg darmowej dostawy z miejsca sprzedaży (API); null = sklep nie ma takiego progu. */
+  freeShippingFrom: number | null;
+}) {
   const pathname = usePathname();
   const [itemCount, setItemCount] = useState(0);
   const [favoriteCount, setFavoriteCount] = useState(0);
@@ -113,7 +120,10 @@ export default function Header({ categories }: { categories: Category[] }) {
       {/* Pasek promocyjny */}
       <div className="bg-brand text-white">
         <div className="container-x flex items-center justify-center gap-4 py-2 text-center text-xs font-semibold sm:text-sm">
-          <span>Darmowa dostawa od {FREE_SHIPPING_FROM} zł i 14 dni na zwrot bez podawania przyczyny</span>
+          <span>
+            {freeShippingFrom !== null ? `Darmowa dostawa od ${formatPrice(freeShippingFrom)} i ` : ''}14 dni na zwrot bez
+            podawania przyczyny
+          </span>
           <Link href="/nowosci" className="btn btn-black btn-sm hidden sm:inline-flex">
             Zobacz nowości
           </Link>
@@ -125,7 +135,9 @@ export default function Header({ categories }: { categories: Category[] }) {
         <div className="container-x flex items-center justify-between py-2">
           <div className="flex items-center gap-2">
             <TruckIcon size={20} />
-            <span className="nav-link">Darmowa dostawa od {FREE_SHIPPING_FROM} zł</span>
+            <span className="nav-link">
+              {freeShippingFrom !== null ? `Darmowa dostawa od ${formatPrice(freeShippingFrom)}` : 'Bezpieczne zakupy'}
+            </span>
           </div>
           <nav className="hidden items-center gap-6 md:flex" aria-label="Informacje">
             {INFO_LINKS.map((link) => (

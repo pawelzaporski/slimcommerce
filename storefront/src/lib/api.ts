@@ -11,7 +11,9 @@ import type {
   Product,
   ProductDetail,
   ShippingMethod,
+  StorefrontSettings,
 } from './types';
+import { SITE_URL } from './site';
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080';
 
@@ -37,6 +39,9 @@ async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): Promise
     ...rest,
     headers: {
       'Content-Type': 'application/json',
+      // Po tym nagłówku API rozpoznaje miejsce sprzedaży (próg darmowej dostawy) -
+      // także przy renderowaniu po stronie serwera, gdzie nie ma nagłówka Origin.
+      'X-Sales-Channel': SITE_URL,
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...headers,
     },
@@ -123,6 +128,37 @@ export function removeCartItem(token: string, itemId: number): Promise<void> {
     method: 'DELETE',
     cache: 'no-store',
   });
+}
+
+/** Kod rabatowy - błąd (nie istnieje, wygasł, za mały koszyk...) przychodzi jako ApiError z errors.code. */
+export function applyDiscountCode(token: string, code: string): Promise<Cart> {
+  return apiFetch<Cart>(`/api/storefront/carts/${token}/discount-code`, {
+    method: 'POST',
+    body: JSON.stringify({ code }),
+    cache: 'no-store',
+  });
+}
+
+export function removeDiscountCode(token: string): Promise<Cart> {
+  return apiFetch<Cart>(`/api/storefront/carts/${token}/discount-code`, {
+    method: 'DELETE',
+    cache: 'no-store',
+  });
+}
+
+// Ustawienia sklepu (próg darmowej dostawy z miejsca sprzedaży)
+
+export function getStorefrontSettings(revalidate = 60): Promise<StorefrontSettings> {
+  return apiFetch<StorefrontSettings>('/api/storefront/settings', { next: { revalidate } });
+}
+
+/** Bezpieczny wariant do layoutu / stron statycznych - brak API nie może wywalić strony. */
+export async function getStorefrontSettingsSafe(): Promise<StorefrontSettings> {
+  try {
+    return await getStorefrontSettings();
+  } catch {
+    return { sales_channel: null, free_shipping_from: null };
+  }
 }
 
 // Klient (auth)

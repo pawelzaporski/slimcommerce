@@ -3,12 +3,13 @@ import CategoryTiles from '@/components/CategoryTiles';
 import HeroBanner from '@/components/HeroBanner';
 import ProductCard from '@/components/ProductCard';
 import SectionHeading from '@/components/SectionHeading';
-import { getCategoriesSafe, getProducts } from '@/lib/api';
+import { getCategoriesSafe, getProducts, getStorefrontSettingsSafe } from '@/lib/api';
 import { buildCategoryTree } from '@/lib/categories';
-import { FREE_SHIPPING_FROM } from '@/lib/site';
+import { formatPrice } from '@/lib/site';
 
 export default async function HomePage() {
-  const [products, categories] = await Promise.all([getProducts(), getCategoriesSafe()]);
+  const [products, categories, settings] = await Promise.all([getProducts(), getCategoriesSafe(), getStorefrontSettingsSafe()]);
+  const freeShippingFrom = settings.free_shipping_from;
 
   const tree = buildCategoryTree(categories).filter((node) => node.total_count > 0);
   const newest = [...products]
@@ -44,14 +45,30 @@ export default async function HomePage() {
           <div className="flex flex-col justify-between rounded-3xl bg-rose-light p-8">
             <div>
               <span className="badge badge-brand">Dostawa</span>
-              <h2 className="display mt-3 text-3xl">
-                Darmowa dostawa
-                <br />
-                od {FREE_SHIPPING_FROM} zł
-              </h2>
-              <p className="mt-3 max-w-sm text-sm text-ink/70">
-                Zamów powyżej {FREE_SHIPPING_FROM} zł, a wysyłkę bierzemy na siebie. Paczka wychodzi w 24 h od zaksięgowania płatności.
-              </p>
+              {freeShippingFrom !== null ? (
+                <>
+                  <h2 className="display mt-3 text-3xl">
+                    Darmowa dostawa
+                    <br />
+                    od {formatPrice(freeShippingFrom)}
+                  </h2>
+                  <p className="mt-3 max-w-sm text-sm text-ink/70">
+                    Zamów za co najmniej {formatPrice(freeShippingFrom)}, a wysyłkę bierzemy na siebie. Paczka wychodzi w 24 h od
+                    zaksięgowania płatności.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <h2 className="display mt-3 text-3xl">
+                    Dostawa
+                    <br />
+                    pod Twoje drzwi
+                  </h2>
+                  <p className="mt-3 max-w-sm text-sm text-ink/70">
+                    Koszt dostawy zobaczysz w podsumowaniu zamówienia. Paczka wychodzi w 24 h od zaksięgowania płatności.
+                  </p>
+                </>
+              )}
             </div>
             <Link href="/pomoc#dostawa" className="btn btn-outline mt-6 self-start">
               Zobacz więcej

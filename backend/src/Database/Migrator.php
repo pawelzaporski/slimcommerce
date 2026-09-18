@@ -23,7 +23,10 @@ final class Migrator
 {
     private const string MIGRATIONS_PATH = __DIR__ . '/../../database/migrations';
 
-    public static function run(): void
+    /**
+     * @return list<string> nazwy plików migracji wykonanych w tym przebiegu
+     */
+    public static function run(): array
     {
         $schema = Capsule::schema();
 
@@ -39,7 +42,7 @@ final class Migrator
         if ($alreadyRun === [] && $schema->hasTable('users')) {
             self::markAllAsRun($files);
 
-            return;
+            return [];
         }
 
         $pending = array_values(array_filter(
@@ -48,10 +51,11 @@ final class Migrator
         ));
 
         if ($pending === []) {
-            return;
+            return [];
         }
 
         $batch = self::nextBatchNumber();
+        $executed = [];
 
         foreach ($pending as $file) {
             /** @var Migration $migration */
@@ -62,7 +66,11 @@ final class Migrator
                 'migration' => basename($file),
                 'batch' => $batch,
             ]);
+
+            $executed[] = basename($file);
         }
+
+        return $executed;
     }
 
     private static function ensureMigrationsTableExists(Builder $schema): void

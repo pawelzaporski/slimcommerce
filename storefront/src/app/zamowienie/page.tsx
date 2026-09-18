@@ -10,6 +10,7 @@ import { CheckIcon } from '@/components/icons';
 import { ApiError, checkout, getCart, getMe, getPaymentMethods, getShippingMethods } from '@/lib/api';
 import { getToken, setToken } from '@/lib/auth';
 import { clearCartToken, getCartToken } from '@/lib/cart';
+import { describeDiscount } from '@/lib/discounts';
 import { notifyStorefrontUpdated } from '@/lib/events';
 import { imageAlt } from '@/lib/images';
 import { formatPrice } from '@/lib/site';
@@ -75,10 +76,15 @@ export default function CheckoutPage() {
     load();
   }, []);
 
-  const itemsTotal =
-    cart?.items.reduce((sum, item) => sum + Number(item.variant.price) * item.quantity, 0) ?? 0;
-  const shippingCost = shippingMethods.find((method) => method.id === shippingMethodId)?.flat_rate ?? 0;
-  const grandTotal = itemsTotal + Number(shippingCost);
+  // Wycena produktów i rabatu przychodzi z API razem z koszykiem (to samo liczy
+  // checkout po stronie serwera); tu dokładamy tylko koszt wybranej dostawy,
+  // chyba że koszyk ma darmową dostawę (kod albo próg miejsca sprzedaży).
+  const pricing = cart?.pricing ?? null;
+  const itemsTotal = pricing?.items_total ?? 0;
+  const discountAmount = pricing?.discount_amount ?? 0;
+  const selectedShipping = shippingMethods.find((method) => method.id === shippingMethodId);
+  const shippingCost = pricing?.free_shipping ? 0 : Number(selectedShipping?.flat_rate ?? 0);
+  const grandTotal = (pricing?.subtotal ?? 0) + shippingCost;
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -144,7 +150,26 @@ export default function CheckoutPage() {
               ))}
             </ul>
 
-            <div className="mt-5 flex items-end justify-between border-t border-black/10 pt-4">
+            <dl className="mt-5 space-y-1 border-t border-black/10 pt-4 text-left text-sm">
+              <div className="flex justify-between">
+                <dt className="text-muted">Produkty</dt>
+                <dd className="font-semibold">{formatPrice(order.items_amount)}</dd>
+              </div>
+              {Number(order.discount_amount) > 0 && (
+                <div className="flex justify-between text-brand">
+                  <dt>Rabat{order.discount_code ? ` (${order.discount_code})` : ''}</dt>
+                  <dd className="font-semibold">-{formatPrice(order.discount_amount)}</dd>
+                </div>
+              )}
+              {order.shipping_method && (
+                <div className="flex justify-between">
+                  <dt className="text-muted">Dostawa ({order.shipping_method.name})</dt>
+                  <dd className="font-semibold">{Number(order.shipping_amount) > 0 ? formatPrice(order.shipping_amount) : 'gratis'}</dd>
+                </div>
+              )}
+            </dl>
+
+            <div className="mt-4 flex items-end justify-between border-t border-black/10 pt-4">
               <span className="display text-lg">Razem</span>
               <PriceTag value={order.total_amount} />
             </div>
@@ -184,6 +209,14 @@ export default function CheckoutPage() {
         <form id="checkout-form" onSubmit={handleSubmit} className="space-y-6">
           {errors.form && (
             <p className="rounded-xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{errors.form}</p>
+          )}
+          {errors.discount_code && (
+            <p className="rounded-xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+              Kod rabatowy: {errors.discount_code}{' '}
+              <Link href="/koszyk" className="underline">
+                Wróć do koszyka
+              </Link>
+            </p>
           )}
 
           <section className="card p-6">
@@ -249,7 +282,7 @@ export default function CheckoutPage() {
                   <option value="">Brak / do ustalenia</option>
                   {shippingMethods.map((method) => (
                     <option key={method.id} value={method.id}>
-                      {method.name} — {formatPrice(method.flat_rate)}
+                      {method.name} — {pricing?.free_shipping ? 'gratis' : formatPrice(method.flat_rate)}
                     </option>
                   ))}
                 </select>
@@ -292,11 +325,25 @@ export default function CheckoutPage() {
               <dt className="text-muted">Produkty</dt>
               <dd className="font-semibold">{formatPrice(itemsTotal)}</dd>
             </div>
+            {cart.discount_code && discountAmount > 0 && (
+              <div className="flex justify-between text-brand">
+                <dt>
+                  Rabat ({cart.discount_code.code})
+                  <span className="block text-[11px] font-normal text-muted">{describeDiscount(cart.discount_code)}</span>
+                </dt>
+                <dd className="font-semibold">-{formatPrice(discountAmount)}</dd>
+              </div>
+            )}
             <div className="flex justify-between">
               <dt className="text-muted">Dostawa</dt>
-              <dd className="font-semibold">{formatPrice(shippingCost)}</dd>
+              <dd className="font-semibold">
+                {pricing?.free_shipping ? 'gratis' : selectedShipping ? formatPrice(shippingCost) : 'do ustalenia'}
+              </dd>
             </div>
           </dl>
+          {cart.discount_code?.type === 'free_shipping' && (
+            <p className="mt-2 text-xs text-muted">Kod {cart.discount_code.code}: darmowa dostawa.</p>
+          )}
           <div className="mt-4 flex items-end justify-between border-t border-black/10 pt-4">
             <span className="display text-lg">Razem</span>
             <PriceTag value={grandTotal} />

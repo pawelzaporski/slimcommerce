@@ -1,7 +1,6 @@
 export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
 export const SITE_NAME = 'slimCommerce';
 export const SITE_TAGLINE = 'zakupy z przyjemnością';
-export const FREE_SHIPPING_FROM = 99;
 export const NEW_PRODUCT_DAYS = 30;
 
 export function formatPrice(value: string | number): string {

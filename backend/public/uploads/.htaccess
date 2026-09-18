@@ -1,0 +1,17 @@
+# Katalog na wgrane zdjęcia. Obrona w głąb: nawet gdyby ktoś zdołał tu
+# umieścić plik .php (walidacja uploadu powinna to wykluczyć), Apache nie
+# może go wykonać ani podać. Serwujemy wyłącznie obrazy.
+
+Options -Indexes -ExecCGI
+
+<IfModule mod_php.c>
+    php_flag engine off
+</IfModule>
+
+<FilesMatch "\.(php|php[0-9]|phtml|phar|pl|py|cgi|sh|htaccess)$">
+    Require all denied
+</FilesMatch>
+
+<FilesMatch "\.(jpe?g|png|gif|webp|avif)$">
+    Require all granted
+</FilesMatch>

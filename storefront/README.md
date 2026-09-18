@@ -46,6 +46,8 @@ Kolory i kroje są zdefiniowane w `src/app/globals.css` (`@theme` - `--color-bra
 | `/logowanie`, `/rejestracja`, `/konto` | Konto klienta | auth |
 | `/o-nas`, `/kontakt`, `/pomoc`, `/regulamin`, `/polityka-prywatnosci` | Strony statyczne (treść-szablon do uzupełnienia) | - |
 
+**Kody rabatowe i darmowa dostawa.** W koszyku jest pole na kod (`POST/DELETE /api/storefront/carts/{token}/discount-code`); wycenę (`pricing`: wartość produktów, rabat, darmowa dostawa, suma) liczy API i ta sama wycena trafia do zamówienia w checkoucie. Próg darmowej dostawy nie jest już stałą w kodzie — pochodzi z ustawień miejsca sprzedaży (`GET /api/storefront/settings`, rozpoznawanego po nagłówku `X-Sales-Channel` = `NEXT_PUBLIC_SITE_URL`, wysyłanym przez `src/lib/api.ts`); bez progu pasek nagłówka, strona główna i pasek USP pokazują neutralne teksty.
+
 Formularz newslettera w stopce to wyłącznie UI (brak endpointu w API) - pokazuje potwierdzenie bez wysyłki.
 Menu i stopka biorą kategorie z `GET /api/storefront/categories` (jedyny endpoint dodany pod storefront,
 razem z filtrem `?category=slug` w liście produktów).

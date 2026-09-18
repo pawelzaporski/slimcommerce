@@ -7,7 +7,10 @@ namespace App\Controllers\Storefront;
 use App\Models\Cart;
 use App\Models\CartItem;
 use App\Models\Client;
+use App\Models\DiscountCode;
 use App\Models\ProductVariant;
+use App\Models\SalesChannel;
+use App\Support\CartPricing;
 use OpenApi\Attributes as OA;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -65,7 +68,7 @@ final class CartController
             $cart->save();
         }
 
-        return $this->json($response, $cart->load('items.variant.product.image1')->toArray(), 201);
+        return $this->json($response, $this->cartPayload($cart, $request), 201);
     }
 
     #[OA\Get(
@@ -86,7 +89,7 @@ final class CartController
             return $this->json($response, ['error' => 'Koszyk nie istnieje.'], 404);
         }
 
-        return $this->json($response, $cart->load('items.variant.product.image1')->toArray());
+        return $this->json($response, $this->cartPayload($cart, $request));
     }
 
     #[OA\Put(
@@ -126,7 +129,7 @@ final class CartController
         $cart->last_interaction_at = date('Y-m-d H:i:s');
         $cart->save();
 
-        return $this->json($response, $cart->load('items.variant.product.image1')->toArray());
+        return $this->json($response, $this->cartPayload($cart, $request));
     }
 
     #[OA\Post(
@@ -255,6 +258,106 @@ final class CartController
         $cart->save();
 
         return $response->withStatus(204);
+    }
+
+    #[OA\Post(
+        path: '/api/storefront/carts/{token}/discount-code',
+        summary: 'Zastosowanie kodu rabatowego do koszyka',
+        tags: ['Storefront - Cart'],
+        parameters: [new OA\Parameter(name: 'token', in: 'path', required: true, schema: new OA\Schema(type: 'string'))],
+        requestBody: new OA\RequestBody(required: true, content: new OA\JsonContent(required: ['code'], properties: [new OA\Property(property: 'code', type: 'string', example: 'LATO20')])),
+        responses: [
+            new OA\Response(response: 200, description: 'Koszyk z zastosowanym kodem (pola discount_code i pricing)', content: new OA\JsonContent(ref: '#/components/schemas/Cart')),
+            new OA\Response(response: 404, description: 'Koszyk nie istnieje'),
+            new OA\Response(response: 422, description: 'Kod nie istnieje / nie może być użyty (errors.code)'),
+        ]
+    )]
+    public function applyDiscountCode(Request $request, Response $response, array $args): Response
+    {
+        $cart = $this->findByToken($args['token']);
+
+        if (! $cart) {
+            return $this->json($response, ['error' => 'Koszyk nie istnieje.'], 404);
+        }
+
+        $data = (array) $request->getParsedBody();
+        $code = is_string($data['code'] ?? null) ? DiscountCode::findByCode($data['code']) : null;
+
+        if ($code === null) {
+            return $this->json($response, ['errors' => ['code' => 'Taki kod rabatowy nie istnieje.']], 422);
+        }
+
+        $cart->load('items.variant');
+        $itemsTotal = 0.0;
+        foreach ($cart->items as $item) {
+            $itemsTotal += (float) ($item->custom_price ?? $item->variant->price) * $item->quantity;
+        }
+
+        $error = CartPricing::validateCode($code, $cart, round($itemsTotal, 2));
+
+        if ($error !== null) {
+            return $this->json($response, ['errors' => ['code' => $error]], 422);
+        }
+
+        $cart->discount_code_id = $code->id;
+        $cart->last_interaction_at = date('Y-m-d H:i:s');
+        $cart->save();
+
+        return $this->json($response, $this->cartPayload($cart, $request));
+    }
+
+    #[OA\Delete(
+        path: '/api/storefront/carts/{token}/discount-code',
+        summary: 'Usunięcie kodu rabatowego z koszyka',
+        tags: ['Storefront - Cart'],
+        parameters: [new OA\Parameter(name: 'token', in: 'path', required: true, schema: new OA\Schema(type: 'string'))],
+        responses: [
+            new OA\Response(response: 200, description: 'Koszyk bez kodu', content: new OA\JsonContent(ref: '#/components/schemas/Cart')),
+            new OA\Response(response: 404, description: 'Koszyk nie istnieje'),
+        ]
+    )]
+    public function removeDiscountCode(Request $request, Response $response, array $args): Response
+    {
+        $cart = $this->findByToken($args['token']);
+
+        if (! $cart) {
+            return $this->json($response, ['error' => 'Koszyk nie istnieje.'], 404);
+        }
+
+        $cart->discount_code_id = null;
+        $cart->last_interaction_at = date('Y-m-d H:i:s');
+        $cart->save();
+
+        return $this->json($response, $this->cartPayload($cart, $request));
+    }
+
+    /**
+     * Koszyk + wycena (App\Support\CartPricing) + informacja o kodzie. Kod, który
+     * przestał być ważny (wygasł, limit), jest odpinany od koszyka, a powód
+     * wraca w `discount_error`, żeby storefront mógł go pokazać.
+     *
+     * @return array<string, mixed>
+     */
+    private function cartPayload(Cart $cart, Request $request): array
+    {
+        $cart->load(['items.variant.product.image1', 'discountCode.products']);
+
+        $pricing = CartPricing::calculate($cart, $cart->discountCode, SalesChannel::resolveForRequest($request));
+
+        if ($pricing['discount_error'] !== null) {
+            $cart->discount_code_id = null;
+            $cart->save();
+        }
+
+        $payload = $cart->toArray();
+        unset($payload['discount_code']);
+
+        $payload['discount_code'] = $pricing['discount_code'];
+        $payload['discount_error'] = $pricing['discount_error'];
+        unset($pricing['discount_code'], $pricing['discount_error']);
+        $payload['pricing'] = $pricing;
+
+        return $payload;
     }
 
     private function findByToken(string $token): ?Cart

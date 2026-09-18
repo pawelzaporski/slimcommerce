@@ -38,6 +38,46 @@ final class AssetController
     {
     }
 
+    /**
+     * Skuteczny limit rozmiaru pliku: nasz MAX_FILE_SIZE przycięty do tego, co
+     * pozwala php.ini hostingu (upload_max_filesize / post_max_size). Dzięki temu
+     * komunikat 422 mówi prawdę zamiast obiecywać 10 MB, gdy hosting daje 2 MB.
+     */
+    private function effectiveMaxFileSize(): int
+    {
+        $limits = [self::MAX_FILE_SIZE];
+
+        foreach (['upload_max_filesize', 'post_max_size'] as $directive) {
+            $bytes = self::iniBytes((string) ini_get($directive));
+
+            if ($bytes > 0) {
+                $limits[] = $bytes;
+            }
+        }
+
+        return min($limits);
+    }
+
+    /** Zamienia zapis skrótowy php.ini (np. "8M", "512K", "1G") na bajty; 0/-1/puste = bez limitu. */
+    private static function iniBytes(string $value): int
+    {
+        $value = trim($value);
+
+        if ($value === '' || $value === '-1' || $value === '0') {
+            return 0;
+        }
+
+        $unit = strtolower(substr($value, -1));
+        $number = (int) $value;
+
+        return match ($unit) {
+            'g' => $number * 1024 ** 3,
+            'm' => $number * 1024 ** 2,
+            'k' => $number * 1024,
+            default => $number,
+        };
+    }
+
     #[OA\Get(
         path: '/api/admin/assets',
         summary: 'Lista plików (zdjęć)',
@@ -150,8 +190,10 @@ final class AssetController
 
         $size = (int) $file->getSize();
 
-        if ($size <= 0 || $size > self::MAX_FILE_SIZE) {
-            return $this->json($response, ['errors' => ['file' => 'Plik jest pusty albo przekracza 10 MB.']], 422);
+        $maxFileSize = $this->effectiveMaxFileSize();
+
+        if ($size <= 0 || $size > $maxFileSize) {
+            return $this->json($response, ['errors' => ['file' => sprintf('Plik jest pusty albo przekracza %s MB.', rtrim(rtrim(number_format($maxFileSize / 1048576, 1, '.', ''), '0'), '.'))]], 422);
         }
 
         $tempPath = $file->getStream()->getMetadata('uri');
