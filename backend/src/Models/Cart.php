@@ -19,6 +19,7 @@ use OpenApi\Attributes as OA;
         new OA\Property(property: 'client_id', type: 'integer', nullable: true, example: null, description: 'Puste dla koszyka gościa (niezalogowanego klienta)'),
         new OA\Property(property: 'name', type: 'string', nullable: true, example: 'Mój koszyk'),
         new OA\Property(property: 'status', type: 'string', example: 'active'),
+        new OA\Property(property: 'discount_code_id', type: 'integer', nullable: true, example: null, description: 'Kod rabatowy przypięty do koszyka (storefront)'),
         new OA\Property(property: 'last_interaction_at', type: 'string', format: 'date-time', nullable: true),
     ]
 )]
@@ -42,6 +43,11 @@ final class Cart extends Model
     public function items(): HasMany
     {
         return $this->hasMany(CartItem::class);
+    }
+
+    public function discountCode(): BelongsTo
+    {
+        return $this->belongsTo(DiscountCode::class);
     }
 
     public static function generateToken(): string

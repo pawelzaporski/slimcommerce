@@ -4,12 +4,16 @@ declare(strict_types=1);
 
 namespace App\Controllers\Storefront;
 
+use App\Mail\OrderConfirmationMail;
 use App\Models\Address;
 use App\Models\Cart;
 use App\Models\Client;
+use App\Models\DiscountCode;
 use App\Models\Order;
 use App\Models\Payment;
+use App\Models\SalesChannel;
 use App\Models\ShippingMethod;
+use App\Support\CartPricing;
 use App\Support\Jwt;
 use OpenApi\Attributes as OA;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -31,7 +35,7 @@ use Throwable;
  */
 final readonly class CheckoutController
 {
-    public function __construct(private Jwt $jwt)
+    public function __construct(private Jwt $jwt, private OrderConfirmationMail $confirmationMail)
     {
     }
 
@@ -61,6 +65,7 @@ final readonly class CheckoutController
                     new OA\Property(property: 'billing_address', description: 'Jak delivery_address - pomiń, żeby użyć adresu dostawy też jako rozliczeniowego'),
                     new OA\Property(property: 'shipping_method_id', type: 'integer', nullable: true),
                     new OA\Property(property: 'payment_method', type: 'string', nullable: true, example: 'cod'),
+                    new OA\Property(property: 'discount_code', type: 'string', nullable: true, example: 'LATO20', description: 'Opcjonalnie - nadpisuje kod przypięty do koszyka'),
                 ]
             )
         ),
@@ -76,7 +81,7 @@ final readonly class CheckoutController
                 )
             ),
             new OA\Response(response: 404, description: 'Koszyk nie istnieje'),
-            new OA\Response(response: 422, description: 'Błędy walidacji'),
+            new OA\Response(response: 422, description: 'Błędy walidacji (m.in. errors.discount_code)'),
         ]
     )]
     public function checkout(Request $request, Response $response): Response
@@ -89,7 +94,7 @@ final readonly class CheckoutController
             return $this->json($response, ['error' => 'Koszyk nie istnieje.'], 404);
         }
 
-        $cart->load('items.variant');
+        $cart->load(['items.variant', 'discountCode.products']);
 
         $client = $this->resolveAuthenticatedClient($request);
         $errors = $this->validate($data, guest: $client === null);
@@ -106,7 +111,26 @@ final readonly class CheckoutController
             ? ShippingMethod::query()->find((int) $data['shipping_method_id'])
             : null;
 
-        $order = Order::query()->getConnection()->transaction(function () use ($data, $cart, $client, $shippingMethod): Order {
+        // Kod rabatowy: z body (nadpisuje) albo przypięty do koszyka. Wycena tym
+        // samym kodem co podgląd koszyka (CartPricing) - klient dostaje w
+        // zamówieniu dokładnie to, co widział w koszyku.
+        $discountCode = $cart->discountCode;
+
+        if (! empty($data['discount_code']) && is_string($data['discount_code'])) {
+            $discountCode = DiscountCode::findByCode($data['discount_code']);
+
+            if ($discountCode === null) {
+                return $this->json($response, ['errors' => ['discount_code' => 'Taki kod rabatowy nie istnieje.']], 422);
+            }
+        }
+
+        $pricing = CartPricing::calculate($cart, $discountCode, SalesChannel::resolveForRequest($request), $shippingMethod);
+
+        if ($pricing['discount_error'] !== null) {
+            return $this->json($response, ['errors' => ['discount_code' => $pricing['discount_error']]], 422);
+        }
+
+        $order = Order::query()->getConnection()->transaction(function () use ($data, $cart, $client, $shippingMethod, $pricing, $discountCode): Order {
             $client ??= Client::query()->create([
                 'client_type' => 'b2c',
                 'first_name' => $data['first_name'],
@@ -132,20 +156,16 @@ final readonly class CheckoutController
                 ])
                 : $deliveryAddress;
 
-            $itemsTotal = 0.0;
-            foreach ($cart->items as $item) {
-                $unitPrice = $item->custom_price ?? $item->variant->price;
-                $itemsTotal += (float) $unitPrice * $item->quantity;
-            }
-
-            $shippingCost = $shippingMethod ? (float) $shippingMethod->flat_rate : 0.0;
-
             $order = Order::query()->create([
                 'client_id' => $client->id,
                 'billing_address_id' => $billingAddress->id,
                 'delivery_address_id' => $deliveryAddress->id,
                 'shipping_method_id' => $shippingMethod?->id,
-                'total_amount' => round($itemsTotal + $shippingCost, 2),
+                'items_amount' => $pricing['items_total'],
+                'discount_code' => $pricing['discount_code']['code'] ?? null,
+                'discount_amount' => $pricing['discount_amount'],
+                'shipping_amount' => $pricing['shipping_amount'],
+                'total_amount' => $pricing['total'],
                 'status' => 'pending',
             ]);
 
@@ -166,6 +186,10 @@ final readonly class CheckoutController
                 ]);
             }
 
+            if ($discountCode !== null && $pricing['discount_code'] !== null) {
+                DiscountCode::query()->whereKey($discountCode->id)->increment('used_count');
+            }
+
             $cart->status = 'converted';
             $cart->client_id ??= $client->id;
             $cart->save();
@@ -173,9 +197,15 @@ final readonly class CheckoutController
             return $order;
         });
 
+        $order->load(['client', 'billingAddress', 'deliveryAddress', 'shippingMethod', 'items.variant.product.image1', 'payments']);
+
+        // Potwierdzenie e-mailem - błąd wysyłki jest tylko logowany (Mailer::send
+        // nie rzuca), zamówienie i tak jest już zapisane.
+        $this->confirmationMail->send($order);
+
         return $this->json($response, [
             'token' => $this->jwt->issue(['sub' => $order->client_id, 'email' => $order->client->email, 'type' => 'client']),
-            'order' => $order->load(['client', 'billingAddress', 'deliveryAddress', 'shippingMethod', 'items.variant.product.image1', 'payments'])->toArray(),
+            'order' => $order->toArray(),
         ], 201);
     }
 

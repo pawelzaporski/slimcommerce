@@ -164,6 +164,8 @@ final class OrderController
                 'billing_address_id' => $data['billing_address_id'] ?? null,
                 'delivery_address_id' => $data['delivery_address_id'] ?? null,
                 'shipping_method_id' => $data['shipping_method_id'] ?? null,
+                'items_amount' => round($itemsTotal, 2),
+                'shipping_amount' => round($shippingCost, 2),
                 'total_amount' => round($itemsTotal + $shippingCost, 2),
                 'status' => $data['status'] ?? 'pending',
             ]);

@@ -41,6 +41,8 @@ dane logowania domyślnego superadmina:
   wartościami w formie „chipów” do dodania/edycji/usunięcia. Dodawanie/edycja
   nazw odbywa się przez proste okienko (`prompt`), zgodnie z resztą lekkiego UI.
 
+- **Zakładka „Kody rabatowe”** — CRUD kodów (`/api/admin/discount-codes`): kod, typ (rabat % / kwotowy na koszyk, % / kwotowy za sztukę na wybrane produkty, darmowa dostawa), wartość, minimalna wartość koszyka, okres ważności, limit użyć (z licznikiem użyć), aktywność; dla kodów produktowych lista produktów objętych kodem (multi-select). W formularzu miejsca sprzedaży jest pole **„Darmowa dostawa od”** — próg wartości koszyka (po rabacie), od którego sklep pod tą domeną nie liczy kosztu dostawy. Szczegóły zamówienia pokazują rozbicie `produkty − rabat (kod) + dostawa` zapisane przy składaniu zamówienia.
+
 Każde żądanie do `api/admin/*` niesie nagłówek `Authorization: Bearer <token>`.
 Wygaśnięcie/nieważność tokenu (odpowiedź 401) automatycznie wylogowuje i wraca
 do ekranu logowania. Na dole okna widoczny jest log ostatnich zapytań (do 50,

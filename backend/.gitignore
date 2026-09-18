@@ -1,6 +1,12 @@
 /vendor/
 /.env
 /database/database.sqlite
+/database/database.sqlite-wal
+/database/database.sqlite-shm
+/database/.install.lock
+/storage/logs/*
+!/storage/logs/.gitkeep
 /public/openapi.json
 /public/uploads/*
 !/public/uploads/.gitkeep
+!/public/uploads/.htaccess

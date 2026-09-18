@@ -71,6 +71,10 @@
                     <svg class="nav-icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="10" cy="10" r="7" stroke="currentColor" stroke-width="1.5"/><path d="M3 10h14M10 3c2.2 2.3 3.3 4.6 3.3 7S12.2 14.7 10 17c-2.2-2.3-3.3-4.6-3.3-7S7.8 5.3 10 3Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
                     <span>Miejsca sprzedaży</span>
                 </button>
+                <button type="button" class="sidebar-nav-item" data-page="discount-codes-page" data-title="Kody rabatowe">
+                    <svg class="nav-icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3 3.75A.75.75 0 0 1 3.75 3h5.69c.2 0 .39.08.53.22l7.06 7.06a.75.75 0 0 1 0 1.06l-5.69 5.69a.75.75 0 0 1-1.06 0L3.22 9.97A.75.75 0 0 1 3 9.44V3.75Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><circle cx="7" cy="7" r="1.1" fill="currentColor"/></svg>
+                    <span>Kody rabatowe</span>
+                </button>
             </div>
 
             <div class="sidebar-nav-group">
@@ -116,6 +120,7 @@
                 <button id="add-shipping-btn" class="page-action" data-page-action="shipping-page" hidden>+ Dodaj metodę</button>
                 <button id="add-payment-method-btn" class="page-action" data-page-action="payment-methods-page" hidden>+ Dodaj metodę</button>
                 <button id="add-sales-channel-btn" class="page-action" data-page-action="sales-channels-page" hidden>+ Dodaj miejsce sprzedaży</button>
+                <button id="add-discount-code-btn" class="page-action" data-page-action="discount-codes-page" hidden>+ Dodaj kod</button>
             </div>
         </header>
 
@@ -703,6 +708,11 @@
                             <tr><td colspan="5" class="muted">Brak pozycji.</td></tr>
                         </tbody>
                         <tfoot>
+                            <tr id="order-breakdown-row" hidden>
+                                <td colspan="3" class="order-total-label">Produkty − rabat + dostawa</td>
+                                <td id="order-breakdown-value"></td>
+                                <td></td>
+                            </tr>
                             <tr>
                                 <td colspan="3" class="order-total-label">Razem (z dostawą)</td>
                                 <td id="order-total-value">0.00</td>
@@ -853,11 +863,35 @@
                             <th>Domena (origin)</th>
                             <th>External ID</th>
                             <th>Aktywne</th>
+                            <th>Darmowa dostawa od</th>
                             <th></th>
                         </tr>
                     </thead>
                     <tbody id="sales-channels-body">
-                        <tr><td colspan="5" class="muted">Ładowanie...</td></tr>
+                        <tr><td colspan="6" class="muted">Ładowanie...</td></tr>
+                    </tbody>
+                </table>
+            </section>
+            <!-- Strona: Kody rabatowe -->
+            <section id="discount-codes-page" class="page" hidden>
+                <p id="discount-codes-error" class="error" hidden></p>
+                <p class="muted">Kody wpisywane przez klienta w koszyku sklepu (storefront). Rabat liczy backend przy każdym odczycie koszyka i w checkoucie. Darmową dostawę <strong>od kwoty</strong> (bez kodu) ustawiasz osobno w <strong>Miejscach sprzedaży</strong>, w polu „Darmowa dostawa od”.</p>
+
+                <table class="products-table">
+                    <thead>
+                        <tr>
+                            <th>Kod</th>
+                            <th>Typ</th>
+                            <th>Wartość</th>
+                            <th>Min. koszyk</th>
+                            <th>Ważność</th>
+                            <th>Użycia</th>
+                            <th>Aktywny</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="discount-codes-body">
+                        <tr><td colspan="8" class="muted">Ładowanie...</td></tr>
                     </tbody>
                 </table>
             </section>
@@ -976,11 +1010,76 @@
             Aktywne (dopuszczone w CORS)
         </label>
 
+        <label for="sales-channel-free-shipping">Darmowa dostawa od (zł)</label>
+        <input type="number" id="sales-channel-free-shipping" min="0" step="0.01" placeholder="puste = brak darmowej dostawy od kwoty">
+        <p class="muted">Próg porównywany z wartością koszyka <strong>po rabacie</strong> z kodu. Sklep pokazuje go w nagłówku i w koszyku („brakuje X zł do darmowej dostawy”).</p>
+
         <p id="sales-channel-form-error" class="error" hidden></p>
 
         <div class="modal-actions">
             <button type="button" id="sales-channel-cancel-btn" class="secondary">Anuluj</button>
             <button type="submit" id="sales-channel-save-btn">Zapisz</button>
+        </div>
+    </form>
+</div>
+
+<!-- Modal dodawania/edycji kodu rabatowego -->
+<div id="discount-code-modal" class="modal-overlay" hidden>
+    <form id="discount-code-form" class="modal-card">
+        <h2 id="discount-code-modal-title">Dodaj kod rabatowy</h2>
+
+        <div class="form-grid">
+            <div class="form-field">
+                <label for="discount-code-code">Kod *</label>
+                <input type="text" id="discount-code-code" placeholder="np. LATO20" required autocomplete="off" style="text-transform: uppercase">
+            </div>
+            <div class="form-field">
+                <label for="discount-code-type">Typ *</label>
+                <select id="discount-code-type">
+                    <option value="percent_cart">Rabat % na cały koszyk</option>
+                    <option value="amount_cart">Rabat kwotowy na cały koszyk</option>
+                    <option value="percent_product">Rabat % na wybrane produkty</option>
+                    <option value="amount_product">Rabat kwotowy za sztukę na wybrane produkty</option>
+                    <option value="free_shipping">Darmowa dostawa</option>
+                </select>
+            </div>
+            <div class="form-field" id="discount-code-value-wrap">
+                <label for="discount-code-value" id="discount-code-value-label">Wartość *</label>
+                <input type="number" id="discount-code-value" min="0.01" step="0.01" placeholder="np. 20">
+            </div>
+            <div class="form-field">
+                <label for="discount-code-min-cart">Min. wartość koszyka (zł)</label>
+                <input type="number" id="discount-code-min-cart" min="0" step="0.01" placeholder="bez minimum">
+            </div>
+            <div class="form-field">
+                <label for="discount-code-starts">Ważny od</label>
+                <input type="date" id="discount-code-starts">
+            </div>
+            <div class="form-field">
+                <label for="discount-code-ends">Ważny do (włącznie)</label>
+                <input type="date" id="discount-code-ends">
+            </div>
+            <div class="form-field">
+                <label for="discount-code-usage-limit">Limit użyć</label>
+                <input type="number" id="discount-code-usage-limit" min="1" step="1" placeholder="bez limitu">
+            </div>
+        </div>
+
+        <div class="form-field" id="discount-code-products-wrap" hidden>
+            <label for="discount-code-products">Produkty objęte kodem * (Ctrl/Cmd + klik zaznacza wiele)</label>
+            <select id="discount-code-products" multiple size="8"></select>
+        </div>
+
+        <label class="checkbox-label">
+            <input type="checkbox" id="discount-code-active" checked>
+            Aktywny
+        </label>
+
+        <p id="discount-code-form-error" class="error" hidden></p>
+
+        <div class="modal-actions">
+            <button type="button" id="discount-code-cancel-btn" class="secondary">Anuluj</button>
+            <button type="submit" id="discount-code-save-btn">Zapisz</button>
         </div>
     </form>
 </div>

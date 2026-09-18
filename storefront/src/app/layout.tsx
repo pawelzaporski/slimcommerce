@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Oswald, Source_Sans_3 } from "next/font/google";
 import Footer from "@/components/Footer";
 import Header from "@/components/Header";
-import { getCategoriesSafe } from "@/lib/api";
+import { getCategoriesSafe, getStorefrontSettingsSafe } from "@/lib/api";
 import { SITE_NAME, SITE_URL } from "@/lib/site";
 import "./globals.css";
 
@@ -35,12 +35,12 @@ export const metadata: Metadata = {
 };
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
-  const categories = await getCategoriesSafe();
+  const [categories, settings] = await Promise.all([getCategoriesSafe(), getStorefrontSettingsSafe()]);
 
   return (
     <html lang="pl" className={`${bodyFont.variable} ${displayFont.variable}`}>
       <body className="flex min-h-dvh flex-col">
-        <Header categories={categories} />
+        <Header categories={categories} freeShippingFrom={settings.free_shipping_from} />
         <main className="flex-1">{children}</main>
         <Footer categories={categories} />
       </body>

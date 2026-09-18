@@ -40,6 +40,9 @@ const state = {
     productImages: { image1: null, image2: null, gallery: [] },
     editingSalesChannelId: null,
     salesChannels: null,
+    editingDiscountCodeId: null,
+    discountCodes: null,
+    editingOrderBreakdown: null,
 };
 
 const requestLog = [];
@@ -124,6 +127,28 @@ const salesChannelExternalId = document.getElementById('sales-channel-external-i
 const salesChannelActive = document.getElementById('sales-channel-active');
 const salesChannelFormError = document.getElementById('sales-channel-form-error');
 const salesChannelCancelBtn = document.getElementById('sales-channel-cancel-btn');
+const salesChannelFreeShipping = document.getElementById('sales-channel-free-shipping');
+
+const addDiscountCodeBtn = document.getElementById('add-discount-code-btn');
+const discountCodesError = document.getElementById('discount-codes-error');
+const discountCodesBody = document.getElementById('discount-codes-body');
+const discountCodeModal = document.getElementById('discount-code-modal');
+const discountCodeForm = document.getElementById('discount-code-form');
+const discountCodeModalTitle = document.getElementById('discount-code-modal-title');
+const discountCodeCode = document.getElementById('discount-code-code');
+const discountCodeType = document.getElementById('discount-code-type');
+const discountCodeValueWrap = document.getElementById('discount-code-value-wrap');
+const discountCodeValueLabel = document.getElementById('discount-code-value-label');
+const discountCodeValue = document.getElementById('discount-code-value');
+const discountCodeMinCart = document.getElementById('discount-code-min-cart');
+const discountCodeStarts = document.getElementById('discount-code-starts');
+const discountCodeEnds = document.getElementById('discount-code-ends');
+const discountCodeUsageLimit = document.getElementById('discount-code-usage-limit');
+const discountCodeProductsWrap = document.getElementById('discount-code-products-wrap');
+const discountCodeProducts = document.getElementById('discount-code-products');
+const discountCodeActive = document.getElementById('discount-code-active');
+const discountCodeFormError = document.getElementById('discount-code-form-error');
+const discountCodeCancelBtn = document.getElementById('discount-code-cancel-btn');
 
 const requestLogEl = document.getElementById('request-log');
 const requestLogToggle = document.getElementById('request-log-toggle');
@@ -273,6 +298,8 @@ const orderShippingMethodSelect = document.getElementById('order-shipping-method
 
 const orderItemsBody = document.getElementById('order-items-body');
 const orderTotalValue = document.getElementById('order-total-value');
+const orderBreakdownRow = document.getElementById('order-breakdown-row');
+const orderBreakdownValue = document.getElementById('order-breakdown-value');
 const orderItemPicker = document.getElementById('order-item-picker');
 const orderItemProductSelect = document.getElementById('order-item-product');
 const orderItemVariantSelect = document.getElementById('order-item-variant');
@@ -611,6 +638,10 @@ function switchPage(pageId, activeNavId = pageId) {
 
     if (pageId === 'sales-channels-page') {
         loadSalesChannels();
+    }
+
+    if (pageId === 'discount-codes-page') {
+        loadDiscountCodes();
     }
 }
 
@@ -2407,8 +2438,21 @@ function renderOrderItems() {
         // przez backend przy tworzeniu zamówienia (obejmuje koszt dostawy
         // z tamtego momentu) - nie przeliczamy jej ponownie po stronie klienta.
         orderTotalValue.textContent = formatPrice(state.editingOrderTotal ?? 0);
+
+        // Rozbicie zapisane w zamówieniu (items - rabat z kodu + dostawa) - tylko
+        // gdy jest co pokazać (rabat albo płatna dostawa).
+        const breakdown = state.editingOrderBreakdown;
+        if (breakdown && (Number(breakdown.discount) > 0 || Number(breakdown.shipping) > 0)) {
+            const codeLabel = breakdown.discountCode ? ` (${escapeHtml(breakdown.discountCode)})` : '';
+            orderBreakdownValue.textContent = `${formatPrice(breakdown.items)} − ${formatPrice(breakdown.discount)}${codeLabel} + ${formatPrice(breakdown.shipping)}`;
+            orderBreakdownRow.hidden = false;
+        } else {
+            orderBreakdownRow.hidden = true;
+        }
         return;
     }
+
+    orderBreakdownRow.hidden = true;
 
     const itemsTotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
     const shippingOption = orderShippingMethodSelect.selectedOptions[0];
@@ -2422,6 +2466,7 @@ orderShippingMethodSelect.addEventListener('change', renderOrderItems);
 async function openOrderCreatePage() {
     state.editingOrderId = null;
     state.editingOrderTotal = null;
+    state.editingOrderBreakdown = null;
     state.orderDraftItems = [];
     orderFormHeading.textContent = 'Nowe zamówienie';
     orderForm.reset();
@@ -2459,6 +2504,12 @@ async function openOrderEditPage(orderId) {
 
         state.editingOrderId = order.id;
         state.editingOrderTotal = Number(order.total_amount);
+        state.editingOrderBreakdown = {
+            items: order.items_amount,
+            discountCode: order.discount_code,
+            discount: order.discount_amount,
+            shipping: order.shipping_amount,
+        };
         state.orderDraftItems = (order.items || []).map((item) => ({
             variantId: item.variant_id,
             sku: item.variant ? item.variant.sku : `#${item.variant_id}`,
@@ -2980,7 +3031,7 @@ async function deletePaymentMethod(paymentMethodItem) {
 
 async function loadSalesChannels() {
     salesChannelsError.hidden = true;
-    salesChannelsBody.innerHTML = '<tr><td colspan="5" class="muted">Ładowanie...</td></tr>';
+    salesChannelsBody.innerHTML = '<tr><td colspan="6" class="muted">Ładowanie...</td></tr>';
 
     try {
         state.salesChannels = await apiFetch('/api/admin/sales-channels');
@@ -2998,7 +3049,7 @@ function renderSalesChannels() {
     const channels = state.salesChannels || [];
 
     if (channels.length === 0) {
-        salesChannelsBody.innerHTML = '<tr><td colspan="5" class="muted">Brak miejsc sprzedaży. Dodaj domenę storefrontu, żeby API dopuściło ją w CORS.</td></tr>';
+        salesChannelsBody.innerHTML = '<tr><td colspan="6" class="muted">Brak miejsc sprzedaży. Dodaj domenę storefrontu, żeby API dopuściło ją w CORS.</td></tr>';
         return;
     }
 
@@ -3012,6 +3063,7 @@ function renderSalesChannels() {
             <td><span class="domain-code">${escapeHtml(channel.domain)}</span></td>
             <td>${channel.external_id ? escapeHtml(channel.external_id) : '—'}</td>
             <td><span class="badge ${channel.is_active ? 'active' : 'inactive'}">${channel.is_active ? 'Tak' : 'Nie'}</span></td>
+            <td>${channel.free_shipping_from !== null && channel.free_shipping_from !== undefined ? `${formatPrice(channel.free_shipping_from)} zł` : '—'}</td>
             <td class="row-actions">
                 <button type="button" class="secondary" data-action="edit">Edytuj</button>
                 <button type="button" class="danger" data-action="delete">Usuń</button>
@@ -3032,6 +3084,7 @@ function openSalesChannelModal(channel = null) {
     salesChannelDomain.value = channel ? channel.domain : '';
     salesChannelExternalId.value = channel?.external_id ?? '';
     salesChannelActive.checked = channel ? Boolean(channel.is_active) : true;
+    salesChannelFreeShipping.value = channel && channel.free_shipping_from !== null && channel.free_shipping_from !== undefined ? Number(channel.free_shipping_from) : '';
     salesChannelFormError.hidden = true;
     salesChannelModal.hidden = false;
     salesChannelName.focus();
@@ -3056,6 +3109,7 @@ salesChannelForm.addEventListener('submit', async (event) => {
         domain: salesChannelDomain.value.trim(),
         external_id: salesChannelExternalId.value.trim() || null,
         is_active: salesChannelActive.checked,
+        free_shipping_from: salesChannelFreeShipping.value.trim() === '' ? null : Number(salesChannelFreeShipping.value),
     };
 
     const isEditing = state.editingSalesChannelId !== null;
@@ -3094,6 +3148,201 @@ async function deleteSalesChannel(channel) {
 // --- Start ---
 
 apiBaseInput.value = getApiBase();
+
+// --- Kody rabatowe (discount codes) ---
+
+const DISCOUNT_TYPE_LABELS = {
+    percent_cart: 'Rabat % na koszyk',
+    amount_cart: 'Rabat kwotowy na koszyk',
+    percent_product: 'Rabat % na wybrane produkty',
+    amount_product: 'Rabat kwotowy/szt. na wybrane produkty',
+    free_shipping: 'Darmowa dostawa',
+};
+
+function isProductScopedDiscount(type) {
+    return type === 'percent_product' || type === 'amount_product';
+}
+
+function isPercentDiscount(type) {
+    return type === 'percent_cart' || type === 'percent_product';
+}
+
+function formatDiscountValue(code) {
+    if (code.type === 'free_shipping') return '—';
+    return isPercentDiscount(code.type) ? `${Number(code.value)}%` : `${formatPrice(code.value)} zł`;
+}
+
+/** ISO z API ("2026-06-01T00:00:00.000000Z") -> "2026-06-01" do <input type="date"> i do tabeli. */
+function toDateInputValue(value) {
+    return value ? String(value).slice(0, 10) : '';
+}
+
+function describeDiscountValidity(code) {
+    const from = toDateInputValue(code.starts_at);
+    const to = toDateInputValue(code.ends_at);
+    if (!from && !to) return 'bezterminowo';
+    if (from && to) return `${from} – ${to}`;
+    return from ? `od ${from}` : `do ${to}`;
+}
+
+async function loadDiscountCodes() {
+    discountCodesError.hidden = true;
+    discountCodesBody.innerHTML = '<tr><td colspan="8" class="muted">Ładowanie...</td></tr>';
+
+    try {
+        state.discountCodes = await apiFetch('/api/admin/discount-codes');
+        renderDiscountCodes();
+    } catch (error) {
+        if (error.status === 401) return;
+        state.discountCodes = [];
+        discountCodesBody.innerHTML = '';
+        discountCodesError.textContent = error.message;
+        discountCodesError.hidden = false;
+    }
+}
+
+function renderDiscountCodes() {
+    const codes = state.discountCodes || [];
+
+    if (codes.length === 0) {
+        discountCodesBody.innerHTML = '<tr><td colspan="8" class="muted">Brak kodów rabatowych. Dodaj pierwszy przyciskiem „+ Dodaj kod”.</td></tr>';
+        return;
+    }
+
+    discountCodesBody.innerHTML = '';
+
+    for (const code of codes) {
+        const row = document.createElement('tr');
+        const productsInfo = isProductScopedDiscount(code.type)
+            ? `<br><span class="muted">${(code.products || []).length} prod.</span>`
+            : '';
+        const usage = `${code.used_count ?? 0} / ${code.usage_limit ?? '∞'}`;
+
+        row.innerHTML = `
+            <td><strong>${escapeHtml(code.code)}</strong></td>
+            <td>${escapeHtml(DISCOUNT_TYPE_LABELS[code.type] || code.type)}${productsInfo}</td>
+            <td>${escapeHtml(formatDiscountValue(code))}</td>
+            <td>${code.min_cart_amount !== null && code.min_cart_amount !== undefined ? `${formatPrice(code.min_cart_amount)} zł` : '—'}</td>
+            <td>${escapeHtml(describeDiscountValidity(code))}</td>
+            <td>${escapeHtml(usage)}</td>
+            <td><span class="badge ${code.is_active ? 'active' : 'inactive'}">${code.is_active ? 'Tak' : 'Nie'}</span></td>
+            <td class="row-actions">
+                <button type="button" class="secondary" data-action="edit">Edytuj</button>
+                <button type="button" class="danger" data-action="delete">Usuń</button>
+            </td>
+        `;
+
+        row.querySelector('[data-action="edit"]').addEventListener('click', () => openDiscountCodeModal(code));
+        row.querySelector('[data-action="delete"]').addEventListener('click', () => deleteDiscountCode(code));
+
+        discountCodesBody.appendChild(row);
+    }
+}
+
+function updateDiscountCodeFormForType() {
+    const type = discountCodeType.value;
+    const freeShipping = type === 'free_shipping';
+
+    discountCodeValueWrap.hidden = freeShipping;
+    discountCodeValue.required = !freeShipping;
+    discountCodeValueLabel.textContent = isPercentDiscount(type)
+        ? 'Wartość (%) *'
+        : type === 'amount_product' ? 'Wartość (zł za sztukę) *' : 'Wartość (zł) *';
+    discountCodeValue.max = isPercentDiscount(type) ? '100' : '';
+
+    discountCodeProductsWrap.hidden = !isProductScopedDiscount(type);
+}
+
+async function populateDiscountCodeProducts(selectedIds = []) {
+    const products = await ensureOrderProductsLoaded();
+    const selected = new Set(selectedIds.map(Number));
+
+    discountCodeProducts.innerHTML = products
+        .map((p) => `<option value="${p.id}"${selected.has(Number(p.id)) ? ' selected' : ''}>${escapeHtml(p.name)} (${escapeHtml(p.sku)})</option>`)
+        .join('');
+}
+
+async function openDiscountCodeModal(code = null) {
+    state.editingDiscountCodeId = code ? code.id : null;
+    discountCodeModalTitle.textContent = code ? `Edytuj kod ${code.code}` : 'Dodaj kod rabatowy';
+    discountCodeCode.value = code ? code.code : '';
+    discountCodeType.value = code ? code.type : 'percent_cart';
+    discountCodeValue.value = code && code.value !== null ? Number(code.value) : '';
+    discountCodeMinCart.value = code && code.min_cart_amount !== null ? Number(code.min_cart_amount) : '';
+    discountCodeStarts.value = code ? toDateInputValue(code.starts_at) : '';
+    discountCodeEnds.value = code ? toDateInputValue(code.ends_at) : '';
+    discountCodeUsageLimit.value = code && code.usage_limit !== null ? code.usage_limit : '';
+    discountCodeActive.checked = code ? Boolean(code.is_active) : true;
+    discountCodeFormError.hidden = true;
+    updateDiscountCodeFormForType();
+    discountCodeModal.hidden = false;
+    discountCodeCode.focus();
+
+    await populateDiscountCodeProducts(code ? (code.products || []).map((p) => p.id) : []);
+}
+
+function closeDiscountCodeModal() {
+    discountCodeModal.hidden = true;
+}
+
+addDiscountCodeBtn.addEventListener('click', () => openDiscountCodeModal());
+discountCodeCancelBtn.addEventListener('click', closeDiscountCodeModal);
+discountCodeModal.addEventListener('click', (event) => {
+    if (event.target === discountCodeModal) closeDiscountCodeModal();
+});
+discountCodeType.addEventListener('change', updateDiscountCodeFormForType);
+
+discountCodeForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    discountCodeFormError.hidden = true;
+
+    const type = discountCodeType.value;
+    const body = {
+        code: discountCodeCode.value.trim().toUpperCase(),
+        type,
+        value: type === 'free_shipping' || discountCodeValue.value === '' ? null : Number(discountCodeValue.value),
+        min_cart_amount: discountCodeMinCart.value === '' ? null : Number(discountCodeMinCart.value),
+        starts_at: discountCodeStarts.value || null,
+        ends_at: discountCodeEnds.value || null,
+        usage_limit: discountCodeUsageLimit.value === '' ? null : Number(discountCodeUsageLimit.value),
+        is_active: discountCodeActive.checked,
+        product_ids: isProductScopedDiscount(type)
+            ? Array.from(discountCodeProducts.selectedOptions).map((option) => Number(option.value))
+            : [],
+    };
+
+    const isEditing = state.editingDiscountCodeId !== null;
+    const path = isEditing ? `/api/admin/discount-codes/${state.editingDiscountCodeId}` : '/api/admin/discount-codes';
+    const method = isEditing ? 'PUT' : 'POST';
+
+    const submitBtn = document.getElementById('discount-code-save-btn');
+    submitBtn.disabled = true;
+
+    try {
+        await apiFetch(path, { method, body: JSON.stringify(body) });
+        closeDiscountCodeModal();
+        loadDiscountCodes();
+    } catch (error) {
+        discountCodeFormError.textContent = error.message;
+        discountCodeFormError.hidden = false;
+    } finally {
+        submitBtn.disabled = false;
+    }
+});
+
+async function deleteDiscountCode(code) {
+    const confirmed = await confirmDialog(`Usunąć kod "${code.code}"? Koszyki z tym kodem stracą rabat, złożone zamówienia zachowają zapis kodu.`, { title: 'Usuń kod rabatowy' });
+    if (!confirmed) return;
+
+    try {
+        await apiFetch(`/api/admin/discount-codes/${code.id}`, { method: 'DELETE' });
+        loadDiscountCodes();
+    } catch (error) {
+        if (error.status === 401) return;
+        discountCodesError.textContent = error.message;
+        discountCodesError.hidden = false;
+    }
+}
 
 if (getToken()) {
     enterApp();

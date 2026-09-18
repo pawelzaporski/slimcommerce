@@ -19,7 +19,11 @@ use OpenApi\Attributes as OA;
         new OA\Property(property: 'billing_address_id', type: 'integer', nullable: true, example: null),
         new OA\Property(property: 'delivery_address_id', type: 'integer', nullable: true, example: null),
         new OA\Property(property: 'shipping_method_id', type: 'integer', nullable: true, example: null),
-        new OA\Property(property: 'total_amount', type: 'number', format: 'float', example: 149.99),
+        new OA\Property(property: 'items_amount', type: 'number', format: 'float', example: 139.99, description: 'Suma pozycji przed rabatem'),
+        new OA\Property(property: 'discount_code', type: 'string', nullable: true, example: 'LATO20', description: 'Snapshot użytego kodu rabatowego'),
+        new OA\Property(property: 'discount_amount', type: 'number', format: 'float', example: 10),
+        new OA\Property(property: 'shipping_amount', type: 'number', format: 'float', example: 20, description: '0 przy darmowej dostawie'),
+        new OA\Property(property: 'total_amount', type: 'number', format: 'float', example: 149.99, description: 'items_amount - discount_amount + shipping_amount'),
         new OA\Property(property: 'status', type: 'string', example: 'pending'),
     ]
 )]
@@ -30,6 +34,9 @@ final class Order extends Model
     protected $guarded = [];
 
     protected $casts = [
+        'items_amount' => 'decimal:2',
+        'discount_amount' => 'decimal:2',
+        'shipping_amount' => 'decimal:2',
         'total_amount' => 'decimal:2',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',

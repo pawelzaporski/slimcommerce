@@ -2,22 +2,32 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import Breadcrumbs from '@/components/Breadcrumbs';
 import EmptyState from '@/components/EmptyState';
 import PriceTag from '@/components/PriceTag';
 import { MinusIcon, PlusIcon, TruckIcon } from '@/components/icons';
-import { getCart, removeCartItem, updateCartItem } from '@/lib/api';
+import { ApiError, applyDiscountCode, getCart, removeCartItem, removeDiscountCode, updateCartItem } from '@/lib/api';
 import { getCartToken } from '@/lib/cart';
+import { describeDiscount } from '@/lib/discounts';
 import { notifyStorefrontUpdated } from '@/lib/events';
 import { imageAlt } from '@/lib/images';
-import { FREE_SHIPPING_FROM, formatPrice } from '@/lib/site';
+import { formatPrice } from '@/lib/site';
 import type { Cart } from '@/lib/types';
 
 export default function CartPage() {
   const [cart, setCart] = useState<Cart | null>(null);
   const [loading, setLoading] = useState(true);
   const [busyItemId, setBusyItemId] = useState<number | null>(null);
+  const [codeInput, setCodeInput] = useState('');
+  const [codeBusy, setCodeBusy] = useState(false);
+  const [codeError, setCodeError] = useState<string | null>(null);
+
+  /** Każda odpowiedź z koszykiem niesie wycenę z API; kod, który przestał być ważny, wraca jako discount_error. */
+  function applyCart(next: Cart) {
+    setCart(next);
+    if (next.discount_error) setCodeError(next.discount_error);
+  }
 
   useEffect(() => {
     async function load() {
@@ -29,7 +39,7 @@ export default function CartPage() {
       }
 
       try {
-        setCart(await getCart(token));
+        applyCart(await getCart(token));
       } catch {
         setCart(null);
       } finally {
@@ -47,7 +57,7 @@ export default function CartPage() {
     try {
       await updateCartItem(token, itemId, quantity);
       notifyStorefrontUpdated();
-      setCart(await getCart(token));
+      applyCart(await getCart(token));
     } finally {
       setBusyItemId(null);
     }
@@ -60,9 +70,43 @@ export default function CartPage() {
     try {
       await removeCartItem(token, itemId);
       notifyStorefrontUpdated();
-      setCart(await getCart(token));
+      applyCart(await getCart(token));
     } finally {
       setBusyItemId(null);
+    }
+  }
+
+  async function handleApplyCode(event: FormEvent) {
+    event.preventDefault();
+    const token = getCartToken();
+    const code = codeInput.trim();
+    if (!token || !code) return;
+
+    setCodeBusy(true);
+    setCodeError(null);
+    try {
+      setCart(await applyDiscountCode(token, code));
+      setCodeInput('');
+      notifyStorefrontUpdated();
+    } catch (err) {
+      setCodeError(err instanceof ApiError ? (err.errors?.code ?? err.message) : 'Nie udało się zastosować kodu.');
+    } finally {
+      setCodeBusy(false);
+    }
+  }
+
+  async function handleRemoveCode() {
+    const token = getCartToken();
+    if (!token) return;
+    setCodeBusy(true);
+    setCodeError(null);
+    try {
+      setCart(await removeDiscountCode(token));
+      notifyStorefrontUpdated();
+    } catch {
+      setCodeError('Nie udało się usunąć kodu.');
+    } finally {
+      setCodeBusy(false);
     }
   }
 
@@ -91,8 +135,10 @@ export default function CartPage() {
     );
   }
 
-  const total = cart.items.reduce((sum, item) => sum + Number(item.variant.price) * item.quantity, 0);
-  const missingForFreeShipping = Math.max(0, FREE_SHIPPING_FROM - total);
+  const { pricing, discount_code: discountCode } = cart;
+  const freeShippingFrom = pricing.free_shipping_from;
+  const missingForFreeShipping = freeShippingFrom !== null ? Math.max(0, freeShippingFrom - pricing.subtotal) : null;
+  const showShippingBox = pricing.free_shipping || freeShippingFrom !== null;
   const stepperButton = 'inline-flex h-9 w-9 items-center justify-center text-ink transition hover:bg-smoke disabled:opacity-40';
 
   return (
@@ -180,35 +226,91 @@ export default function CartPage() {
         <aside className="card sticky top-4 p-6">
           <h2 className="display text-xl">Podsumowanie</h2>
 
-          <div className="mt-4 rounded-xl bg-rose-light p-3 text-sm">
-            <p className="flex items-center gap-2 font-semibold">
-              <TruckIcon size={18} className="text-brand" />
-              {missingForFreeShipping > 0
-                ? `Brakuje ${formatPrice(missingForFreeShipping)} do darmowej dostawy`
-                : 'Masz darmową dostawę!'}
-            </p>
-            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white">
-              <div
-                className="h-full rounded-full bg-brand transition-all"
-                style={{ width: `${Math.min(100, (total / FREE_SHIPPING_FROM) * 100)}%` }}
-              />
+          {showShippingBox && (
+            <div className="mt-4 rounded-xl bg-rose-light p-3 text-sm">
+              <p className="flex items-center gap-2 font-semibold">
+                <TruckIcon size={18} className="text-brand" />
+                {pricing.free_shipping
+                  ? pricing.free_shipping_reason === 'code'
+                    ? 'Masz darmową dostawę z kodu!'
+                    : 'Masz darmową dostawę!'
+                  : `Brakuje ${formatPrice(missingForFreeShipping ?? 0)} do darmowej dostawy`}
+              </p>
+              {freeShippingFrom !== null && freeShippingFrom > 0 && (
+                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white">
+                  <div
+                    className="h-full rounded-full bg-brand transition-all"
+                    style={{ width: `${pricing.free_shipping ? 100 : Math.min(100, (pricing.subtotal / freeShippingFrom) * 100)}%` }}
+                  />
+                </div>
+              )}
             </div>
+          )}
+
+          <div className="mt-5">
+            {discountCode ? (
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-brand/30 bg-rose-light/50 px-3 py-2 text-sm">
+                <span className="min-w-0">
+                  <span className="block font-semibold">Kod {discountCode.code}</span>
+                  <span className="block text-xs text-muted">{describeDiscount(discountCode)}</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={handleRemoveCode}
+                  disabled={codeBusy}
+                  className="text-xs font-semibold text-muted underline hover:text-brand disabled:opacity-50"
+                >
+                  Usuń
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleApplyCode} className="flex gap-2">
+                <label className="sr-only" htmlFor="discount-code">
+                  Kod rabatowy
+                </label>
+                <input
+                  id="discount-code"
+                  type="text"
+                  value={codeInput}
+                  onChange={(event) => setCodeInput(event.target.value.toUpperCase())}
+                  placeholder="Kod rabatowy"
+                  autoComplete="off"
+                  className="field min-w-0 flex-1 uppercase"
+                  aria-invalid={codeError ? true : undefined}
+                  aria-describedby={codeError ? 'discount-code-error' : undefined}
+                />
+                <button type="submit" disabled={codeBusy || !codeInput.trim()} className="btn btn-black btn-sm">
+                  Zastosuj
+                </button>
+              </form>
+            )}
+            {codeError && (
+              <p id="discount-code-error" className="mt-2 text-xs font-semibold text-red-600">
+                {codeError}
+              </p>
+            )}
           </div>
 
           <dl className="mt-5 space-y-2 text-sm">
             <div className="flex justify-between">
               <dt className="text-muted">Wartość produktów</dt>
-              <dd className="font-semibold">{formatPrice(total)}</dd>
+              <dd className="font-semibold">{formatPrice(pricing.items_total)}</dd>
             </div>
+            {pricing.discount_amount > 0 && (
+              <div className="flex justify-between text-brand">
+                <dt>Rabat{discountCode ? ` (${discountCode.code})` : ''}</dt>
+                <dd className="font-semibold">-{formatPrice(pricing.discount_amount)}</dd>
+              </div>
+            )}
             <div className="flex justify-between">
               <dt className="text-muted">Dostawa</dt>
-              <dd className="font-semibold">{missingForFreeShipping > 0 ? 'wg wybranej metody' : 'gratis'}</dd>
+              <dd className="font-semibold">{pricing.free_shipping ? 'gratis' : 'wg wybranej metody'}</dd>
             </div>
           </dl>
 
           <div className="mt-4 flex items-end justify-between border-t border-black/10 pt-4">
             <span className="display text-lg">Razem</span>
-            <PriceTag value={total} />
+            <PriceTag value={pricing.total} />
           </div>
 
           <Link href="/zamowienie" className="btn btn-brand btn-lg mt-5 w-full">

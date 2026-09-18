@@ -73,6 +73,30 @@ export interface CartItem {
   variant: ProductVariant;
 }
 
+export type DiscountCodeType = 'percent_cart' | 'amount_cart' | 'percent_product' | 'amount_product' | 'free_shipping';
+
+export interface DiscountCodeInfo {
+  code: string;
+  type: DiscountCodeType;
+  /** Procent albo kwota (zł); null dla free_shipping. */
+  value: number | null;
+}
+
+/** Wycena koszyka liczona po stronie API (App\Support\CartPricing) - to samo, co trafi do zamówienia. */
+export interface CartPricing {
+  items_total: number;
+  discount_amount: number;
+  /** Produkty po rabacie (bez dostawy). */
+  subtotal: number;
+  free_shipping: boolean;
+  free_shipping_reason: 'code' | 'threshold' | null;
+  /** Próg darmowej dostawy miejsca sprzedaży; null = brak progu. */
+  free_shipping_from: number | null;
+  /** W koszyku zawsze 0 - metoda dostawy wybierana jest w checkoucie. */
+  shipping_amount: number;
+  total: number;
+}
+
 export interface Cart {
   id: number;
   token: string;
@@ -83,6 +107,15 @@ export interface Cart {
   created_at: string;
   updated_at: string;
   items: CartItem[];
+  discount_code: DiscountCodeInfo | null;
+  /** Powód automatycznego odpięcia kodu (wygasł, limit...) - do pokazania klientowi. */
+  discount_error: string | null;
+  pricing: CartPricing;
+}
+
+export interface StorefrontSettings {
+  sales_channel: { id: number; name: string; domain: string } | null;
+  free_shipping_from: number | null;
 }
 
 export interface Client {
@@ -157,6 +190,10 @@ export interface Order {
   billing_address_id: number | null;
   delivery_address_id: number | null;
   shipping_method_id: number | null;
+  items_amount: string;
+  discount_code: string | null;
+  discount_amount: string;
+  shipping_amount: string;
   total_amount: string;
   status: string;
   client: Client;
@@ -176,6 +213,8 @@ export interface CheckoutPayload {
   billing_address?: AddressInput;
   shipping_method_id?: number | null;
   payment_method?: string;
+  /** Opcjonalnie - nadpisuje kod przypięty do koszyka. */
+  discount_code?: string;
 }
 
 export interface CheckoutResponse {

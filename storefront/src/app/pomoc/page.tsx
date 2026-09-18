@@ -1,7 +1,8 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import StaticPage from '@/components/StaticPage';
-import { FREE_SHIPPING_FROM } from '@/lib/site';
+import { getStorefrontSettingsSafe } from '@/lib/api';
+import { formatPrice } from '@/lib/site';
 
 export const metadata: Metadata = {
   title: 'Pomoc',
@@ -15,7 +16,9 @@ const SECTIONS = [
   { id: 'konto', label: 'Konto i zamówienia' },
 ];
 
-export default function HelpPage() {
+export default async function HelpPage() {
+  const { free_shipping_from: freeShippingFrom } = await getStorefrontSettingsSafe();
+
   return (
     <StaticPage title="Pomoc" lead="Najczęstsze pytania o zakupy w naszym sklepie w jednym miejscu.">
       <nav aria-label="Sekcje pomocy" className="not-prose mb-6 flex flex-wrap gap-2">
@@ -33,8 +36,8 @@ export default function HelpPage() {
       <h2 id="dostawa">Dostawa</h2>
       <h3>Ile kosztuje dostawa?</h3>
       <p>
-        Koszt zależy od wybranej metody dostawy i jest widoczny w podsumowaniu zamówienia. Zamówienia od{' '}
-        {FREE_SHIPPING_FROM} zł wysyłamy za darmo.
+        Koszt zależy od wybranej metody dostawy i jest widoczny w podsumowaniu zamówienia.
+        {freeShippingFrom !== null ? ` Zamówienia od ${formatPrice(freeShippingFrom)} wysyłamy za darmo.` : ''}
       </p>
       <h3>Kiedy otrzymam paczkę?</h3>
       <p>

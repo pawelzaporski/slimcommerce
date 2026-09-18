@@ -21,8 +21,8 @@ php -S localhost:8080 -t public public/index.php
 ```
 
 Przy każdym starcie aplikacji (każde żądanie, bo to `php -S` bez trwałego procesu):
-1. utworzy plik `database/database.sqlite`, jeśli jeszcze nie istnieje,
-2. uruchomi migracje z `database/migrations/` — tylko te, które jeszcze nie zostały zapisane w tabeli `migrations` (patrz sekcja "Migracje bazy danych" niżej),
+1. utworzy plik `database/database.sqlite`, jeśli jeszcze nie istnieje (SQLite w trybie WAL, patrz `DB_SQLITE_WAL`),
+2. **jeśli `DB_AUTO_MIGRATE=true`** (domyślnie) — uruchomi migracje z `database/migrations/` — tylko te, które jeszcze nie zostały zapisane w tabeli `migrations` (patrz sekcja "Migracje bazy danych" niżej); przy `false` migracje uruchamiasz ręcznie (patrz "Wdrożenie na shared hosting"),
 3. założy domyślne konto **superadmina** (patrz `src/Database/Seeder.php`), jeśli w bazie nie ma jeszcze żadnego użytkownika o roli `superadmin`. Dane logowania są na stałe zapisane w kodzie (nie w `.env`):
    - login: `superadmin`
    - hasło: `superadmin`
@@ -76,6 +76,39 @@ jeszcze nie ma. To znaczy:
 
 Migracje idą tylko "w przód" (brak `down()`/rollbacku) — na obecnym etapie
 projektu to celowe uproszczenie.
+
+## Wdrożenie na shared hosting
+
+Ustawienia w `.env`, które na współdzielonym hostingu (Apache + PHP, bez SSH, bez Redisa) mają znaczenie:
+
+| Klucz | Produkcyjnie | Po co |
+|---|---|---|
+| `APP_DEBUG` | `false` | przy `true` stack trace leci do odpowiedzi JSON |
+| `APP_URL` | `https://api.twojadomena.pl` | adresy zdjęć nie są wtedy budowane z nagłówka `Host` żądania |
+| `LOG_PATH` | `storage/logs/php-error.log` | jedyne miejsce, gdzie zobaczysz błędy — log Apache jest zwykle niedostępny. Katalog musi być zapisywalny dla PHP i **niedostępny z WWW** |
+| `DB_SQLITE_WAL` / `DB_BUSY_TIMEOUT_MS` | `true` / `5000` | mniej „database is locked” przy równoległych żądaniach; obok bazy powstają pliki `-wal` i `-shm` (katalog `database/` musi być zapisywalny) |
+| `DB_AUTO_MIGRATE` | `false` | migracje nie odpalają się przy każdym żądaniu; uruchamiasz je raz po wgraniu nowej wersji |
+| `MIGRATE_SECRET` | losowy ciąg | klucz do ręcznego uruchomienia migracji przez HTTP (poniżej) |
+| `MAIL_*` | SMTP z panelu hostingu | potwierdzenia zamówień; `MAIL_MAILER=log` tylko lokalnie |
+| `JWT_SECRET` | losowe ≥ 32 znaki | placeholder z `.env.example` nie może trafić na produkcję |
+
+**Migracje przy `DB_AUTO_MIGRATE=false`.** Po wgraniu plików wywołaj jedno z dwóch:
+
+```bash
+php bin/migrate.php
+```
+
+albo (bez SSH) żądanie HTTP:
+
+```bash
+curl -X POST https://api.twojadomena.pl/api/admin/migrate -H "X-Migrate-Key: <MIGRATE_SECRET>"
+```
+
+Odpowiedź zawiera listę wykonanych migracji (`executed`). Bez ustawionego `MIGRATE_SECRET` endpoint zwraca 404. Migracje i seed superadmina biegną zawsze pod blokadą plikową (`database/.install.lock`), więc dwa równoległe wywołania nie wykonają tej samej migracji dwa razy.
+
+**Katalog `public/uploads/`** ma własny `.htaccess`, który blokuje wykonywanie PHP i listowanie katalogu, a serwuje wyłącznie obrazy. Wymaga `AllowOverride All` (standard na shared hostingu). Limit wielkości pliku to 10 MB przycięte do `upload_max_filesize` / `post_max_size` z php.ini hostera — komunikat błędu 422 pokazuje realny limit.
+
+**E-mail.** Po checkoucie klient dostaje potwierdzenie zamówienia (`src/Mail/OrderConfirmationMail.php`). Wysyłka idzie przez PHPMailer/SMTP; błąd SMTP jest logowany do `LOG_PATH` i nie przerywa złożenia zamówienia. Lokalnie `MAIL_MAILER=log` zapisuje treść wiadomości do logu zamiast wysyłać.
 
 ## Struktura API
 
@@ -180,6 +213,40 @@ na początku `index.php` jest przepuszczenie istniejących plików z `public/`
 (`return false`) - dzięki temu `/uploads/...` serwowane są bezpośrednio. Na
 produkcji (nginx/Apache) zrób to samo po stronie serwera WWW.
 
+## Kody rabatowe i darmowa dostawa
+
+Definicje kodów: `GET|POST /api/admin/discount-codes`, `GET|PUT|DELETE /api/admin/discount-codes/{id}` (panel: zakładka „Kody rabatowe”). Typy (`type`):
+
+| `type` | Działanie | `value` |
+|---|---|---|
+| `percent_cart` | rabat % od wartości wszystkich produktów w koszyku | procent (0–100) |
+| `amount_cart` | rabat kwotowy od wartości koszyka (nie więcej niż wartość koszyka) | zł |
+| `percent_product` | rabat % tylko na produkty z listy `product_ids` | procent |
+| `amount_product` | rabat kwotowy **za każdą sztukę** produktu z listy `product_ids` (nie więcej niż cena sztuki) | zł |
+| `free_shipping` | darmowa dostawa (koszt dostawy = 0) | — |
+
+Wspólne ograniczenia: `min_cart_amount` (minimalna wartość produktów przed rabatem), `starts_at` / `ends_at` (sama data `RRRR-MM-DD` = od początku / do końca dnia), `usage_limit` (licznik `used_count` rośnie przy każdym złożonym zamówieniu), `is_active`. Kod wpisany przez klienta jest normalizowany (wielkie litery, bez spacji).
+
+**Darmowa dostawa od kwoty** to ustawienie miejsca sprzedaży (`free_shipping_from` w `sales_channels`, w panelu w formularzu miejsca sprzedaży). Próg porównywany jest z wartością koszyka **po rabacie**. Miejsce sprzedaży rozpoznawane jest po nagłówku `X-Sales-Channel` (storefront wysyła w nim swój `NEXT_PUBLIC_SITE_URL`), potem po `Origin`; gdy nic nie pasuje, a aktywne jest dokładnie jedno miejsce sprzedaży, brane jest ono. `GET /api/storefront/settings` zwraca próg dla bieżącego sklepu.
+
+**Koszyk (storefront):** `POST /api/storefront/carts/{token}/discount-code` (`{"code": "LATO20"}`) przypina kod, `DELETE` go zdejmuje. Każda odpowiedź z koszykiem zawiera:
+
+```json
+{
+  "discount_code": {"code": "LATO20", "type": "percent_cart", "value": 20},
+  "discount_error": null,
+  "pricing": {
+    "items_total": 120.0, "discount_amount": 24.0, "subtotal": 96.0,
+    "free_shipping": false, "free_shipping_reason": null, "free_shipping_from": 199.0,
+    "shipping_amount": 0.0, "total": 96.0
+  }
+}
+```
+
+`free_shipping_reason` to `code` (kod `free_shipping`) albo `threshold` (próg miejsca sprzedaży). Kod, który przestał być ważny, jest automatycznie odpinany, a powód wraca w `discount_error`. `shipping_amount` w koszyku jest zawsze 0 (metoda dostawy wybierana jest dopiero w checkoucie).
+
+**Checkout** liczy wszystko tą samą klasą (`src/Support/CartPricing.php`) i zapisuje w zamówieniu `items_amount`, `discount_code` (snapshot), `discount_amount`, `shipping_amount` i `total_amount = items_amount - discount_amount + shipping_amount`. Nieważny kod daje 422 z `errors.discount_code`. Opcjonalne pole `discount_code` w body nadpisuje kod przypięty do koszyka.
+
 ## Miejsca sprzedaży i CORS
 
 Tabela **`sales_channels`** (`name`, `domain`, `is_active`, `external_id`) opisuje
@@ -226,7 +293,14 @@ composer run docs
 - `src/Database/Migration.php` — interfejs pojedynczej migracji (`up(Builder $schema): void`).
 - `src/Database/Migrator.php` — runner: wykonuje tylko migracje spoza tabeli `migrations`.
 - `src/Database/Seeder.php` — zakłada domyślnego superadmina.
-- `src/Bootstrap/Database.php` — inicjalizacja Capsule.
+- `src/Database/Installer.php` — migracje + seed pod blokadą plikową (wołane przy `DB_AUTO_MIGRATE=true`, z `bin/migrate.php` i z `POST /api/admin/migrate`).
+- `bin/migrate.php` — ręczne uruchomienie migracji z CLI.
+- `src/Bootstrap/Database.php` — inicjalizacja Capsule (ścieżka, WAL, busy_timeout z `.env`).
+- `src/Bootstrap/Logging.php` — kierowanie błędów PHP do pliku `LOG_PATH`.
+- `src/Support/Mailer.php` — wysyłka e-maili (PHPMailer/SMTP, tryby `smtp`/`log`/`none`).
+- `src/Mail/OrderConfirmationMail.php` — treść potwierdzenia zamówienia.
+- `src/Controllers/MaintenanceController.php` — `POST /api/admin/migrate` (sekret `MIGRATE_SECRET`).
+- `storage/logs/` — logi błędów (poza repo).
 - `src/Support/Jwt.php` — wystawianie/weryfikacja tokenów JWT.
 - `src/Middleware/AdminAuthMiddleware.php` — ochrona tras `api/admin/*`.
 - `src/Controllers/Admin/` — kontrolery panelu admina (login, produkty, cechy, warianty, assety/upload, miejsca sprzedaży).

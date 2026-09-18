@@ -52,6 +52,7 @@ final class SalesChannelController
                     new OA\Property(property: 'name', type: 'string', example: 'Sklep główny'),
                     new OA\Property(property: 'domain', type: 'string', example: 'https://sklep.example.com'),
                     new OA\Property(property: 'is_active', type: 'boolean', default: true),
+                    new OA\Property(property: 'free_shipping_from', type: 'number', format: 'float', nullable: true, example: 199, description: 'Darmowa dostawa od tej wartości koszyka (po rabacie); null = brak'),
                 ]
             )
         ),
@@ -75,6 +76,7 @@ final class SalesChannelController
             'name' => $data['name'],
             'domain' => SalesChannel::normalizeDomain($data['domain']),
             'is_active' => (bool) ($data['is_active'] ?? true),
+            'free_shipping_from' => $this->freeShippingFrom($data),
         ]);
 
         return $this->json($response, $channel->toArray(), 201);
@@ -94,6 +96,7 @@ final class SalesChannelController
                     new OA\Property(property: 'name', type: 'string'),
                     new OA\Property(property: 'domain', type: 'string'),
                     new OA\Property(property: 'is_active', type: 'boolean'),
+                    new OA\Property(property: 'free_shipping_from', type: 'number', format: 'float', nullable: true),
                 ]
             )
         ),
@@ -135,6 +138,10 @@ final class SalesChannelController
             $channel->is_active = (bool) $data['is_active'];
         }
 
+        if (array_key_exists('free_shipping_from', $data)) {
+            $channel->free_shipping_from = $this->freeShippingFrom($data);
+        }
+
         $channel->save();
 
         return $this->json($response, $channel->toArray());
@@ -170,9 +177,23 @@ final class SalesChannelController
      *
      * @return array<string, string>
      */
+    /**
+     * @param array<string, mixed> $data
+     */
+    private function freeShippingFrom(array $data): ?float
+    {
+        $value = $data['free_shipping_from'] ?? null;
+
+        return ($value === null || $value === '') ? null : round((float) $value, 2);
+    }
+
     private function validate(array $data, bool $partial = false, ?int $ignoreId = null): array
     {
         $errors = [];
+
+        if (isset($data['free_shipping_from']) && $data['free_shipping_from'] !== '' && (! is_numeric($data['free_shipping_from']) || (float) $data['free_shipping_from'] < 0)) {
+            $errors['free_shipping_from'] = 'Pole free_shipping_from musi być liczbą nieujemną (albo puste).';
+        }
 
         if (! $partial || array_key_exists('name', $data)) {
             if (empty($data['name']) || ! is_string($data['name'])) {

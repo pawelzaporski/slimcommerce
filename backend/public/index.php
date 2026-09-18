@@ -15,6 +15,7 @@ if (PHP_SAPI === 'cli-server') {
 }
 
 use App\Bootstrap\Database;
+use App\Bootstrap\Logging;
 use App\Controllers\Admin\AddressController;
 use App\Controllers\Admin\AssetController;
 use App\Controllers\Admin\AttributeController;
@@ -23,6 +24,7 @@ use App\Controllers\Admin\CartController;
 use App\Controllers\Admin\CartItemController;
 use App\Controllers\Admin\CategoryController;
 use App\Controllers\Admin\ClientController;
+use App\Controllers\Admin\DiscountCodeController;
 use App\Controllers\Admin\OrderController;
 use App\Controllers\Admin\PaymentController;
 use App\Controllers\Admin\PaymentMethodController;
@@ -32,20 +34,23 @@ use App\Controllers\Admin\SalesChannelController;
 use App\Controllers\Admin\ShippingMethodController;
 use App\Controllers\Admin\UserController;
 use App\Controllers\DocsController;
+use App\Controllers\MaintenanceController;
 use App\Controllers\Storefront\AuthController as StorefrontAuthController;
 use App\Controllers\Storefront\CartController as StorefrontCartController;
 use App\Controllers\Storefront\CategoryController as StorefrontCategoryController;
 use App\Controllers\Storefront\CheckoutController as StorefrontCheckoutController;
 use App\Controllers\Storefront\PaymentMethodController as StorefrontPaymentMethodController;
 use App\Controllers\Storefront\ProductController as StorefrontProductController;
+use App\Controllers\Storefront\SettingsController as StorefrontSettingsController;
 use App\Controllers\Storefront\ShippingMethodController as StorefrontShippingMethodController;
-use App\Database\Migrator;
-use App\Database\Seeder;
+use App\Database\Installer;
+use App\Mail\OrderConfirmationMail;
 use App\Middleware\AdminAuthMiddleware;
 use App\Middleware\StorefrontAuthMiddleware;
 use App\Models\Asset;
 use App\Models\SalesChannel;
 use App\Support\Jwt;
+use App\Support\Mailer;
 use Dotenv\Dotenv;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -54,13 +59,13 @@ use Slim\Routing\RouteCollectorProxy;
 
 require dirname(__DIR__) . '/vendor/autoload.php';
 
-// display_errors domyślnie wypisuje błędy/ostrzeżenia (m.in. deprecacje z
-// brick/math przy odczycie castów "decimal") prosto do treści odpowiedzi,
-// co psuje JSON. Błędy mają trafiać do logu, nie do body odpowiedzi.
-ini_set('display_errors', '0');
-error_reporting(E_ALL);
-
 $rootPath = dirname(__DIR__);
+
+// Błędy PHP nigdy nie idą do treści odpowiedzi (psułyby JSON), tylko do pliku
+// logu - domyślnie storage/logs/php-error.log, bo na shared hostingu logu
+// Apache zwykle nie da się podejrzeć. Ścieżka do nadpisania przez LOG_PATH
+// w .env (poniżej, po wczytaniu .env, konfiguracja jest powtarzana).
+Logging::configure($rootPath, 'storage/logs/php-error.log');
 
 // 1. Wczytanie konfiguracji z .env
 $dotenv = Dotenv::createImmutable($rootPath);
@@ -68,17 +73,18 @@ $dotenv->load();
 
 $appDebug = filter_var($_ENV['APP_DEBUG'] ?? 'false', FILTER_VALIDATE_BOOL);
 
-$databasePath = $_ENV['DB_DATABASE'] ?? 'database/database.sqlite';
-if (! str_starts_with($databasePath, '/') && ! preg_match('/^[A-Za-z]:[\\\\\/]/', $databasePath)) {
-    $databasePath = $rootPath . '/' . $databasePath;
+Logging::configure($rootPath, (string) ($_ENV['LOG_PATH'] ?? 'storage/logs/php-error.log'), $appDebug);
+
+// 2. Połączenie z SQLite przez Eloquent (Capsule) - ścieżka, WAL i busy_timeout z .env
+Database::fromEnv($rootPath, $_ENV)->boot();
+
+// 3. Migracje schematu + domyślny superadmin.
+// DB_AUTO_MIGRATE=true (dev): przy każdym żądaniu, pod blokadą plikową.
+// DB_AUTO_MIGRATE=false (produkcja): tylko ręcznie - `php bin/migrate.php`
+// albo `POST /api/admin/migrate` z nagłówkiem X-Migrate-Key (MIGRATE_SECRET).
+if (filter_var($_ENV['DB_AUTO_MIGRATE'] ?? 'true', FILTER_VALIDATE_BOOL)) {
+    Installer::run();
 }
-
-// 2. Połączenie z SQLite przez Eloquent (Capsule)
-(new Database($databasePath))->boot();
-
-// 3. Migracje schematu + domyślny superadmin
-Migrator::run();
-Seeder::run();
 
 // Publiczny adres API - baza dla `url` assetów (zdjęć w public/uploads/).
 // APP_URL w .env, a gdy go nie ma - schemat + Host z bieżącego żądania (dev).
@@ -93,7 +99,9 @@ Asset::setBaseUrl($appUrl);
 $app = AppFactory::create();
 $app->addBodyParsingMiddleware();
 $app->addRoutingMiddleware();
-$app->addErrorMiddleware($appDebug, true, true);
+$errorMiddleware = $app->addErrorMiddleware($appDebug, true, true);
+// Błędy zawsze jako JSON (a nie HTML "Slim Application Error"), niezależnie od nagłówka Accept.
+$errorMiddleware->getDefaultErrorHandler()->forceContentType('application/json');
 
 // CORS - panel admina (backoffice) i sklep (storefront) są osobnymi aplikacjami
 // front-endowymi i mogą być serwowane z innych originów niż API. Middleware
@@ -132,7 +140,7 @@ $app->add(function (Request $request, $handler) use ($corsAllowedOrigin): Respon
     }
 
     return $response
-        ->withHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+        ->withHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Sales-Channel')
         ->withHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
 });
 
@@ -140,6 +148,10 @@ $jwt = new Jwt(
     secret: $_ENV['JWT_SECRET'] ?? 'change-this-to-a-random-secret-of-at-least-32-chars',
     ttlSeconds: (int) ($_ENV['JWT_TTL'] ?? 3600),
 );
+
+$mailer = Mailer::fromEnv($_ENV);
+$orderConfirmationMail = new OrderConfirmationMail($mailer, trim((string) ($_ENV['APP_NAME'] ?? 'slimCommerce')));
+$maintenanceController = new MaintenanceController(trim((string) ($_ENV['MIGRATE_SECRET'] ?? '')));
 
 $authController = new AuthController($jwt);
 $adminProductController = new AdminProductController();
@@ -157,13 +169,15 @@ $cartController = new CartController();
 $cartItemController = new CartItemController();
 $assetController = new AssetController(__DIR__);
 $salesChannelController = new SalesChannelController();
+$discountCodeController = new DiscountCodeController();
 $storefrontProductController = new StorefrontProductController();
 $storefrontCategoryController = new StorefrontCategoryController();
 $storefrontCartController = new StorefrontCartController();
 $storefrontAuthController = new StorefrontAuthController($jwt);
-$storefrontCheckoutController = new StorefrontCheckoutController($jwt);
+$storefrontCheckoutController = new StorefrontCheckoutController($jwt, $orderConfirmationMail);
 $storefrontShippingMethodController = new StorefrontShippingMethodController();
 $storefrontPaymentMethodController = new StorefrontPaymentMethodController();
+$storefrontSettingsController = new StorefrontSettingsController();
 $docsController = new DocsController();
 
 // 5. Strona startowa + dokumentacja API (Swagger UI)
@@ -174,6 +188,7 @@ $app->get('/', function (Request $request, Response $response): Response {
         'docs' => '/docs',
         'endpoints' => [
             'POST /api/admin/login',
+            'POST /api/admin/migrate (X-Migrate-Key)',
             'GET|POST /api/admin/products (Bearer JWT)',
             'GET|PUT|DELETE /api/admin/products/{id} (Bearer JWT)',
             'GET|POST /api/admin/attributes (Bearer JWT)',
@@ -206,6 +221,8 @@ $app->get('/', function (Request $request, Response $response): Response {
             'GET|PUT|DELETE /api/admin/assets/{id} (Bearer JWT)',
             'GET|POST /api/admin/sales-channels (Bearer JWT)',
             'PUT|DELETE /api/admin/sales-channels/{id} (Bearer JWT)',
+            'GET|POST /api/admin/discount-codes (Bearer JWT)',
+            'GET|PUT|DELETE /api/admin/discount-codes/{id} (Bearer JWT)',
             'GET /api/storefront/products (?category=slug)',
             'GET /api/storefront/categories',
             'GET /api/storefront/products/{id}',
@@ -215,6 +232,8 @@ $app->get('/', function (Request $request, Response $response): Response {
             'POST /api/storefront/checkout',
             'GET /api/storefront/shipping-methods',
             'GET /api/storefront/payment-methods',
+            'GET /api/storefront/settings',
+            'POST|DELETE /api/storefront/carts/{token}/discount-code',
             'POST /api/storefront/carts',
             'GET|PUT /api/storefront/carts/{token}',
             'POST /api/storefront/carts/{token}/items',
@@ -229,6 +248,9 @@ $app->get('/', function (Request $request, Response $response): Response {
 
 $app->get('/openapi.json', [$docsController, 'openApiJson']);
 $app->get('/docs', [$docsController, 'ui']);
+
+// Migracje na żądanie (poza grupą admina: bez JWT, chronione sekretem MIGRATE_SECRET)
+$app->post('/api/admin/migrate', [$maintenanceController, 'migrate']);
 
 // 6. Trasy panelu admina (api/admin) - login publiczny, reszta chroniona JWT
 $app->group('/api/admin', function (RouteCollectorProxy $group) use (
@@ -248,6 +270,7 @@ $app->group('/api/admin', function (RouteCollectorProxy $group) use (
     $cartItemController,
     $assetController,
     $salesChannelController,
+    $discountCodeController,
     $jwt,
 ): void {
     $group->post('/login', [$authController, 'login']);
@@ -268,6 +291,7 @@ $app->group('/api/admin', function (RouteCollectorProxy $group) use (
         $cartItemController,
         $assetController,
         $salesChannelController,
+        $discountCodeController,
     ): void {
         $group->get('/products', [$adminProductController, 'list']);
         $group->get('/products/{id:[0-9]+}', [$adminProductController, 'show']);
@@ -344,6 +368,12 @@ $app->group('/api/admin', function (RouteCollectorProxy $group) use (
         $group->post('/sales-channels', [$salesChannelController, 'create']);
         $group->put('/sales-channels/{id:[0-9]+}', [$salesChannelController, 'update']);
         $group->delete('/sales-channels/{id:[0-9]+}', [$salesChannelController, 'delete']);
+
+        $group->get('/discount-codes', [$discountCodeController, 'list']);
+        $group->get('/discount-codes/{id:[0-9]+}', [$discountCodeController, 'show']);
+        $group->post('/discount-codes', [$discountCodeController, 'create']);
+        $group->put('/discount-codes/{id:[0-9]+}', [$discountCodeController, 'update']);
+        $group->delete('/discount-codes/{id:[0-9]+}', [$discountCodeController, 'delete']);
     })->add(new AdminAuthMiddleware($jwt));
 });
 
@@ -356,6 +386,7 @@ $app->group('/api/storefront', function (RouteCollectorProxy $group) use (
     $storefrontCheckoutController,
     $storefrontShippingMethodController,
     $storefrontPaymentMethodController,
+    $storefrontSettingsController,
     $jwt,
 ): void {
     $group->get('/products', [$storefrontProductController, 'list']);
@@ -369,6 +400,7 @@ $app->group('/api/storefront', function (RouteCollectorProxy $group) use (
     $group->post('/checkout', [$storefrontCheckoutController, 'checkout']);
     $group->get('/shipping-methods', [$storefrontShippingMethodController, 'list']);
     $group->get('/payment-methods', [$storefrontPaymentMethodController, 'list']);
+    $group->get('/settings', [$storefrontSettingsController, 'show']);
 
     $group->post('/carts', [$storefrontCartController, 'create']);
     $group->get('/carts/{token}', [$storefrontCartController, 'show']);
@@ -376,6 +408,8 @@ $app->group('/api/storefront', function (RouteCollectorProxy $group) use (
     $group->post('/carts/{token}/items', [$storefrontCartController, 'addItem']);
     $group->put('/carts/{token}/items/{itemId:[0-9]+}', [$storefrontCartController, 'updateItem']);
     $group->delete('/carts/{token}/items/{itemId:[0-9]+}', [$storefrontCartController, 'removeItem']);
+    $group->post('/carts/{token}/discount-code', [$storefrontCartController, 'applyDiscountCode']);
+    $group->delete('/carts/{token}/discount-code', [$storefrontCartController, 'removeDiscountCode']);
 });
 
 $app->run();

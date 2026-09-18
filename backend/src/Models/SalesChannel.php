@@ -6,6 +6,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use OpenApi\Attributes as OA;
+use Psr\Http\Message\ServerRequestInterface;
 
 #[OA\Schema(
     schema: 'SalesChannel',
@@ -16,6 +17,7 @@ use OpenApi\Attributes as OA;
         new OA\Property(property: 'name', type: 'string', example: 'Sklep główny'),
         new OA\Property(property: 'domain', type: 'string', example: 'https://sklep.example.com', description: 'Origin storefrontu (schemat + host [+ port]) dopuszczony w CORS'),
         new OA\Property(property: 'is_active', type: 'boolean', example: true),
+        new OA\Property(property: 'free_shipping_from', type: 'number', format: 'float', nullable: true, example: 199, description: 'Wartość koszyka (po rabacie), od której dostawa w tym sklepie jest darmowa; null = brak progu'),
         new OA\Property(property: 'created_at', type: 'string', format: 'date-time', nullable: true),
         new OA\Property(property: 'updated_at', type: 'string', format: 'date-time', nullable: true),
     ]
@@ -26,7 +28,42 @@ final class SalesChannel extends Model
 
     protected $casts = [
         'is_active' => 'boolean',
+        'free_shipping_from' => 'decimal:2',
     ];
+
+    /**
+     * Miejsce sprzedaży, z którego przyszło żądanie storefrontu: po nagłówku
+     * X-Sales-Channel (origin sklepu, wysyłany przez storefront także z SSR),
+     * a w drugiej kolejności po Origin przeglądarki. Gdy nic nie pasuje, a
+     * aktywne jest dokładnie jedno miejsce sprzedaży - używamy go (typowa
+     * instalacja z jednym sklepem). W innym wypadku null.
+     */
+    public static function resolveForRequest(ServerRequestInterface $request): ?self
+    {
+        foreach (['X-Sales-Channel', 'Origin'] as $header) {
+            $value = trim($request->getHeaderLine($header));
+
+            if ($value === '') {
+                continue;
+            }
+
+            $origin = self::normalizeDomain($value);
+
+            if ($origin === null) {
+                continue;
+            }
+
+            $channel = self::query()->where('domain', $origin)->where('is_active', true)->first();
+
+            if ($channel !== null) {
+                return $channel;
+            }
+        }
+
+        $active = self::query()->where('is_active', true)->orderBy('id')->limit(2)->get();
+
+        return $active->count() === 1 ? $active->first() : null;
+    }
 
     /**
      * Originy aktywnych miejsc sprzedaży - wchodzą na listę dozwolonych w CORS.
